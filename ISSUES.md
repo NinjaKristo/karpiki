@@ -127,7 +127,7 @@ status: open
 priority: p0
 effort: medium
 labels: [scheduler, observability]
-revisit_when: "Next scheduler code session in the ingest-contract plan."
+revisit_when: "When a live wiki scheduler install is next requested; code now reports broken."
 refs:
   - scripts/wiki_scheduler.py (_global_status)
   - SPECS/0.3.1-global-scheduler.md (CLI path and stale-path reporting)
@@ -141,9 +141,11 @@ still report `state: installed` and `loaded: true` because it only checks that
 the plist exists and launchd has the label loaded. Spec 0.3.1 required
 reporting the CLI path and detecting stale paths. Not implemented.
 
-Live repair is not a gate for the current workstream. Orphaned captures can
-wait. The code fix is: parse the plist, validate wrapper and target, surface
-last exit, never call a missing binary `installed`.
+`wiki scheduler status` now reports `broken` when the plist program or the
+recorded CLI is missing, including a loaded LaunchAgent that still points at
+a deleted snapshot. Live repair is still not a gate: the machine plist is
+unchanged until someone runs `wiki scheduler install`. Orphaned captures can
+wait.
 
 ---
 
@@ -159,14 +161,11 @@ refs:
   - scripts/wiki_scheduler.py (install_global, build_launch_agent)
 ```
 
-`wiki scheduler install` bakes the installing tree's `bin/wiki` into the plist.
-Codex cache directories are named by plugin.json version. Reinstall without a
-fresh `scheduler install` leaves launchd pointing at a deleted snapshot.
-
-Intended fix: plist always execs a versionless XDG wrapper
-(`$WIKI_CONFIG_HOME/scheduler/run`) whose target is rewritten on install.
-VERSION bumps then do not change the plist path. A checkout bump still does
-not refresh a Codex cache folder; that only happens on plugin reinstall.
+New installs write `$WIKI_CONFIG_HOME/scheduler/run` as the plist program and
+record the real `bin/wiki` in `current-cli`. VERSION bumps no longer change
+the plist path. The live machine plist still points at the deleted `0.3.1`
+cache until the next `wiki scheduler install`. A checkout bump still does not
+refresh a Codex cache folder.
 
 ---
 

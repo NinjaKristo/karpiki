@@ -139,6 +139,8 @@ def render(wiki: str | Path) -> int:
                 if command == "install"
                 else f"wiki scheduler {command} {root}"
             )
+        elif scheduler == "broken":
+            scheduler_action = "wiki scheduler install"
     except (ConfigError, SchedulerError, OSError):
         scheduler = "mismatch" if ingest["dispatch_mode"] == "scheduled" else "n/a"
 

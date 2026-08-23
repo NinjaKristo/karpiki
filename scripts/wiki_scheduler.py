@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -71,6 +72,32 @@ def build_launch_agent(
     }
 
 
+def write_scheduler_launcher(wiki_executable: Path, config_home: Path) -> Path:
+    """Write a versionless wrapper and the recorded CLI path. Return the wrapper."""
+
+    home = Path(config_home).expanduser().resolve()
+    sched = home / "scheduler"
+    sched.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target = Path(wiki_executable).expanduser().resolve()
+    if not target.is_file():
+        raise SchedulerError(f"wiki scheduler: CLI is missing: {target}")
+    pointer = sched / "current-cli"
+    launcher = sched / "run"
+    _atomic_write(pointer, f"{target}\n".encode("utf-8"), 0o600)
+    script = """#!/bin/sh
+set -e
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+IFS= read -r CLI < "$DIR/current-cli" || true
+if [ ! -n "$CLI" ] || [ ! -x "$CLI" ]; then
+  echo "wiki scheduler: CLI is missing or not executable: ${CLI:-unset}" >&2
+  exit 78
+fi
+exec "$CLI" "$@"
+"""
+    _atomic_write(launcher, script.encode("utf-8"), 0o700)
+    return launcher
+
+
 def _plugin_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
@@ -122,11 +149,55 @@ def _run_launchctl(
     return result
 
 
+_LAST_EXIT_RE = re.compile(r"last exit code\s*=\s*(\d+)")
+
+
 def _is_loaded(executable: str, label: str = GLOBAL_SCHEDULER_LABEL) -> bool:
+    loaded, _last_exit = _launchd_print(executable, label)
+    return loaded
+
+
+def _launchd_print(executable: str, label: str) -> tuple[bool, int | None]:
     result = _run_launchctl(
         executable, ["print", f"{_domain()}/{label}"], check=False
     )
-    return result.returncode == 0
+    last_exit: int | None = None
+    match = _LAST_EXIT_RE.search(result.stdout or "")
+    if match:
+        last_exit = int(match.group(1))
+    return result.returncode == 0, last_exit
+
+
+def _cli_from_plist(plist_path: Path, config_home: Path) -> tuple[str | None, bool]:
+    """Return (cli_path, cli_ok) for the LaunchAgent program."""
+
+    try:
+        with plist_path.open("rb") as handle:
+            payload = plistlib.load(handle)
+    except (OSError, plistlib.InvalidFileException, ValueError):
+        return None, False
+    args = payload.get("ProgramArguments")
+    if not isinstance(args, list) or not args or not isinstance(args[0], str) or not args[0]:
+        return None, False
+    program = Path(args[0]).expanduser()
+    launcher = (Path(config_home).expanduser().resolve() / "scheduler" / "run")
+    try:
+        same = program.resolve() == launcher if program.exists() else program == launcher
+    except OSError:
+        same = False
+    if same or (program.name == "run" and (program.parent / "current-cli").is_file()):
+        pointer = program.parent / "current-cli"
+        try:
+            line = pointer.read_text(encoding="utf-8").splitlines()[0].strip()
+        except (OSError, IndexError):
+            return str(program), False
+        if not line:
+            return str(program), False
+        target = Path(line).expanduser()
+        ok = target.is_file() and os.access(target, os.X_OK)
+        return str(target), ok
+    ok = program.is_file() and os.access(program, os.X_OK)
+    return str(program), ok
 
 
 def _plist_bytes(payload: dict[str, Any]) -> bytes:
@@ -200,8 +271,9 @@ def install_global() -> dict[str, Any]:
     launchctl = _launchctl()
     label, plist_path = scheduler_identity(_home())
     runtime_home = scheduler_config_path().parents[1]
+    launcher = write_scheduler_launcher(_plugin_root() / "bin" / "wiki", runtime_home)
     payload = build_launch_agent(
-        _plugin_root() / "bin" / "wiki",
+        launcher,
         label,
         scheduler["interval_seconds"],
         os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
@@ -307,17 +379,26 @@ def uninstall_global(*, force: bool = False) -> dict[str, Any]:
 def _global_status() -> dict[str, Any]:
     scheduler = ensure_scheduler_runtime_config()["scheduler"]
     label, plist_path = scheduler_identity(_home())
+    config_home = scheduler_config_path().parents[1]
     launchctl = os.environ.get("WIKI_LAUNCHCTL_EXECUTABLE") or shutil.which("launchctl")
     loaded: bool | None = None
+    last_exit: int | None = None
     if launchctl:
-        loaded = _is_loaded(launchctl, label)
+        loaded, last_exit = _launchd_print(launchctl, label)
     plist_exists = plist_path.is_file()
+    cli_path: str | None = None
+    cli_ok = False
+    if plist_exists:
+        cli_path, cli_ok = _cli_from_plist(plist_path, config_home)
+
     if launchctl is None:
         state = "unavailable"
-    elif plist_exists and loaded:
-        state = "installed"
     elif not plist_exists and not loaded:
         state = "not installed"
+    elif plist_exists and not cli_ok:
+        state = "broken"
+    elif plist_exists and loaded:
+        state = "installed"
     else:
         state = "mismatch"
 
@@ -335,6 +416,9 @@ def _global_status() -> dict[str, Any]:
         "plist": str(plist_path),
         "plist_exists": plist_exists,
         "loaded": loaded,
+        "cli_path": cli_path,
+        "cli_ok": cli_ok,
+        "last_exit": last_exit,
         "interval_seconds": scheduler["interval_seconds"],
         "max_total_processes": scheduler["max_total_processes"],
         "max_processes_per_wiki": scheduler["max_processes_per_wiki"],
@@ -353,7 +437,9 @@ def status(wiki: str | Path | None = None) -> dict[str, Any]:
     config = validate_runtime_config(wiki)
     root = Path(config["wiki_root"])
     mode = config["ingest"]["dispatch_mode"]
-    if mode == "scheduled" and global_state["state"] == "installed":
+    if global_state["state"] == "broken":
+        state = "broken"
+    elif mode == "scheduled" and global_state["state"] == "installed":
         state = "installed"
     elif mode == "session_start":
         state = "session_start"
@@ -489,16 +575,21 @@ def _print_human(result: dict[str, Any]) -> None:
         "invalid_wikis",
         "label",
         "plist",
+        "cli_path",
+        "cli_ok",
+        "last_exit",
         "wiki",
         "pending_count",
         "active_slot",
         "profile",
         "attempted_wikis",
     ):
-        if key in result:
+        if key in result and result[key] is not None:
             print(f"{key.replace('_', ' ')}: {result[key]}")
     if result.get("state") == "mismatch":
         print("action: run `wiki scheduler install`, `wiki scheduler enable <wiki>`, or `wiki scheduler disable <wiki>`")
+    elif result.get("state") == "broken":
+        print("action: run `wiki scheduler install` with a live plugin CLI")
     elif result.get("state") == "unavailable":
         print("action: use a portable scheduled `wiki scheduler tick-all`")
     for error in result.get("errors", []):

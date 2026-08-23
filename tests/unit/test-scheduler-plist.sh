@@ -51,6 +51,41 @@ assert decoded["StandardErrorPath"].endswith("/scheduler/scheduler.log")
 print("PASS: global LaunchAgent plist is stable, path-safe, and complete")
 PY
 
+python3 - "${REPO_ROOT}" <<'PY'
+import os
+import plistlib
+import stat
+import sys
+import tempfile
+from pathlib import Path
+
+repo = Path(sys.argv[1])
+sys.path.insert(0, str(repo / "scripts"))
+from wiki_scheduler import (
+    GLOBAL_SCHEDULER_LABEL,
+    build_launch_agent,
+    write_scheduler_launcher,
+)
+
+config_home = Path(tempfile.mkdtemp()) / "Trusted Config Home"
+cli = (repo / "bin" / "wiki").resolve()
+launcher = write_scheduler_launcher(cli, config_home)
+pointer = config_home / "scheduler" / "current-cli"
+assert launcher == (config_home.resolve() / "scheduler" / "run")
+assert launcher.is_file()
+assert launcher.stat().st_mode & stat.S_IXUSR
+assert pointer.read_text(encoding="utf-8").strip() == str(cli)
+payload = build_launch_agent(
+    launcher,
+    GLOBAL_SCHEDULER_LABEL,
+    73,
+    "/usr/bin:/bin",
+    config_home,
+)
+assert payload["ProgramArguments"] == [str(launcher.resolve()), "scheduler", "tick-all"]
+print("PASS: scheduler launcher is versionless and records the real CLI")
+PY
+
 python3 - "${REPO_ROOT}/README.md" <<'PY'
 import sys
 from pathlib import Path

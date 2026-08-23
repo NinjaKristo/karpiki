@@ -89,13 +89,22 @@ PLIST="$(global_plist)"
 [[ -f "${PLIST}" ]] || fail "global scheduler plist was not created"
 [[ "$(config_value "${WIKI_ONE}" ingest.dispatch_mode)" == "session_start" ]] \
   || fail "global install changed wiki activation"
-python3 - "${PLIST}" <<'PY'
-import plistlib, sys
+python3 - "${PLIST}" "${WIKI_CONFIG_HOME}" "${WIKI_BIN}" <<'PY'
+import os
+import plistlib
+import sys
+from pathlib import Path
 with open(sys.argv[1], "rb") as handle:
     data = plistlib.load(handle)
+config_home = Path(sys.argv[2]).resolve()
+cli = Path(sys.argv[3]).resolve()
+launcher = config_home / "scheduler" / "run"
+pointer = config_home / "scheduler" / "current-cli"
 assert data["Label"] == "com.toolboxmd.karpathy-wiki.scheduler"
-assert data["ProgramArguments"][1:] == ["scheduler", "tick-all"]
+assert data["ProgramArguments"] == [str(launcher), "scheduler", "tick-all"]
 assert data["StartInterval"] == 60
+assert launcher.is_file() and os.access(launcher, os.X_OK)
+assert pointer.read_text(encoding="utf-8").strip() == str(cli)
 PY
 
 # Reinstall is idempotent and keeps the same global plist.
@@ -137,6 +146,39 @@ grep -Fq 'state: mismatch' <<< "${status_out}" \
 status_wiki="$(bash "${WIKI_BIN}" scheduler status "${WIKI_ONE}")"
 grep -Fq 'state: mismatch' <<< "${status_wiki}" \
   || fail "per-wiki status missed scheduled without loaded global scheduler"
+
+# Status is broken when the recorded CLI is missing, even if launchd loaded the job.
+: > "${WIKI_SCHEDULER_TEST_STATE}/com.toolboxmd.karpathy-wiki.scheduler"
+printf '%s\n' "/definitely/missing/karpathy-wiki-cli" > "${WIKI_CONFIG_HOME}/scheduler/current-cli"
+broken_json="$(bash "${WIKI_BIN}" scheduler status --json)" \
+  || fail "broken CLI status should still exit 0"
+python3 -c '
+import json, sys
+data = json.loads(sys.argv[1])
+assert data["state"] == "broken", data
+assert data["cli_ok"] is False, data
+assert data["cli_path"].endswith("karpathy-wiki-cli"), data
+' "${broken_json}" || fail "loaded scheduler with missing CLI was not broken"
+
+# Legacy plist that points at a deleted snapshot is broken, not installed.
+python3 - "${PLIST}" <<'PY'
+import plistlib, sys
+path = sys.argv[1]
+with open(path, "rb") as handle:
+    data = plistlib.load(handle)
+data["ProgramArguments"] = ["/deleted/plugin/0.3.1/bin/wiki", "scheduler", "tick-all"]
+with open(path, "wb") as handle:
+    plistlib.dump(data, handle)
+PY
+legacy_json="$(bash "${WIKI_BIN}" scheduler status --json)" \
+  || fail "legacy missing-CLI status should still exit 0"
+python3 -c '
+import json, sys
+data = json.loads(sys.argv[1])
+assert data["state"] == "broken", data
+assert data["cli_ok"] is False, data
+assert data["cli_path"] == "/deleted/plugin/0.3.1/bin/wiki", data
+' "${legacy_json}" || fail "legacy missing snapshot was not broken"
 
 # A failed bootstrap on a fresh HOME leaves no plist.
 BROKEN_HOME="${TMP}/broken-home"

@@ -68,7 +68,13 @@ test_status_reports_runtime_and_scheduler_state() {
   setup
   write_runtime_config "${WIKI}" scheduled auto
   local output
-  output="$(WIKI_CODEXBAR_EXECUTABLE=/definitely/missing bash "${STATUS}" "${WIKI}")"
+  local home="${TESTDIR}/home"
+  mkdir -p "${home}"
+  output="$(
+    HOME="${home}" \
+    WIKI_CODEXBAR_EXECUTABLE=/definitely/missing \
+    bash "${STATUS}" "${WIKI}"
+  )"
   grep -q "runtime config: configured" <<< "${output}" \
     || { echo "FAIL: configured runtime missing"; teardown; exit 1; }
   grep -q "dispatch mode: scheduled" <<< "${output}" \
