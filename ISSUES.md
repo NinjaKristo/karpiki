@@ -384,7 +384,7 @@ status: open
 priority: p1
 effort: medium
 labels: [ingest-contract, skill]
-revisit_when: "After the five-source A/B confirms the new contract."
+revisit_when: "After Naturbiss overlay on a small sample; A/B on 2026-08-23 favored B."
 refs:
   - skills/karpathy-wiki-ingest/references/page-conventions.md
   - skills/karpathy-wiki-ingest/SKILL.md
