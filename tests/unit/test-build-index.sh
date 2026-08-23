@@ -175,4 +175,80 @@ test_lock_slug_matches_wiki_lock_sh
 test_handles_9_categories_no_crash
 test_reserved_subdir_descendants_excluded
 test_wiki_root_only_gets_index_md_not_underscore_index
+
+test_index_skips_leading_heading_without_summary() {
+  setup
+  cat > "${WIKI}/concepts/color.md" <<'EOF'
+---
+title: "Color for visual hierarchy"
+type: concepts
+tags: []
+sources: []
+created: "2026-04-26T12:00:00Z"
+updated: "2026-04-26T12:00:00Z"
+quality:
+  accuracy: 4
+  completeness: 4
+  signal: 4
+  interlinking: 4
+  overall: 4.00
+  rated_at: "2026-04-26T12:00:00Z"
+  rated_by: ingester
+---
+## Status: external opinion, not a Naturbiss fact
+
+Reserve accent colors for primary CTAs.
+EOF
+  python3 "${BUILD}" --wiki-root "${WIKI}" --rebuild-all
+  if grep -q "Status: external opinion" "${WIKI}/concepts/_index.md"; then
+    echo "FAIL: heading leaked into index description"
+    cat "${WIKI}/concepts/_index.md"
+    teardown
+    exit 1
+  fi
+  grep -q "Reserve accent colors for primary CTAs." "${WIKI}/concepts/_index.md" \
+    || { echo "FAIL: expected first real paragraph"; cat "${WIKI}/concepts/_index.md"; teardown; exit 1; }
+  echo "PASS: test_index_skips_leading_heading_without_summary"
+  teardown
+}
+
+test_index_prefers_summary_over_body() {
+  setup
+  cat > "${WIKI}/concepts/color.md" <<'EOF'
+---
+title: "Color for visual hierarchy"
+type: concepts
+tags: []
+sources: []
+summary: "Reserve accent color for primary CTAs."
+created: "2026-04-26T12:00:00Z"
+updated: "2026-04-26T12:00:00Z"
+quality:
+  accuracy: 4
+  completeness: 4
+  signal: 4
+  interlinking: 4
+  overall: 4.00
+  rated_at: "2026-04-26T12:00:00Z"
+  rated_by: ingester
+---
+## Status: external opinion, not a Naturbiss fact
+
+A longer body paragraph that must not become the index line.
+EOF
+  python3 "${BUILD}" --wiki-root "${WIKI}" --rebuild-all
+  grep -q "Reserve accent color for primary CTAs." "${WIKI}/concepts/_index.md" \
+    || { echo "FAIL: summary missing from index"; cat "${WIKI}/concepts/_index.md"; teardown; exit 1; }
+  if grep -q "Status: external opinion\|longer body paragraph" "${WIKI}/concepts/_index.md"; then
+    echo "FAIL: body leaked despite summary"
+    cat "${WIKI}/concepts/_index.md"
+    teardown
+    exit 1
+  fi
+  echo "PASS: test_index_prefers_summary_over_body"
+  teardown
+}
+
+test_index_skips_leading_heading_without_summary
+test_index_prefers_summary_over_body
 echo "all tests passed"

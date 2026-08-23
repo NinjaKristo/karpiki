@@ -9,6 +9,7 @@ Single source of truth for page format. The ingester writes pages following thes
 title: "<page title>"
 type: <category>           # plural form: concepts, entities, queries, ideas, projects, ...
 tags: [tag1, tag2, ...]
+summary: "<one line, <= 200 characters, no heading markup>"
 sources:
   - raw/<basename>         # OR the literal string "conversation"
 related:
@@ -25,6 +26,10 @@ quality:
   rated_by: ingester       # OR "human" — human is sticky, ingester must not overwrite
 ---
 ```
+
+`summary` is required on pages the ingester writes. It is the index
+one-liner. Do not start it with `#`. Extra frontmatter keys named in
+that wiki's `schema.md` are allowed; they are not plugin defaults.
 
 ## Cross-link convention
 

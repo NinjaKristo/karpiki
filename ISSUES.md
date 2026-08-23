@@ -415,17 +415,16 @@ status: open
 priority: p1
 effort: small
 labels: [index, ingest-contract]
-revisit_when: "summary + index generator session."
+revisit_when: "After new pages are written with summary; old pages still fall back."
 refs:
   - scripts/wiki-build-index.py (_description)
+  - skills/karpathy-wiki-ingest/references/page-conventions.md
 ```
 
-`_description` uses the first paragraph after frontmatter. If that is a
-heading (`## Status: ...`), every index line is identical. Naturbiss
-`concepts/_index.md` is 187 copies of that banner.
-
-Need a default `summary` field for new pages, and a generator fallback that
-skips headings. Do not special-case brand field names in the plugin builder.
+The generator now prefers `summary`, else the first non-heading body
+paragraph. Old pages without `summary` still fall back. Indexes stay
+poisoned until those pages are rewritten or given a summary. Do not
+special-case brand field names in the plugin builder.
 
 ---
 

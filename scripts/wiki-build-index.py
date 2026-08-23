@@ -82,17 +82,31 @@ def _quality(fm: dict) -> str:
         return f"(q: {overall}) "
 
 
+def _truncate_description(text: str) -> str:
+    compact = " ".join(text.split()).strip()
+    if len(compact) > 200:
+        return compact[:200] + "..."
+    return compact
+
+
 def _description(fm: dict, page: Path) -> str:
-    """Return the first non-empty paragraph of the body, truncated to 200 chars."""
+    """Return summary, else the first non-heading body paragraph, truncated."""
+    summary = fm.get("summary")
+    if isinstance(summary, str):
+        compact = _truncate_description(summary)
+        if compact and not compact.startswith("#"):
+            return compact
     text = page.read_text()
     end = text.find("\n---\n", 4)
     if end < 0:
         return ""
     body = text[end + 5:].strip()
-    para = body.split("\n\n", 1)[0].replace("\n", " ").strip()
-    if len(para) > 200:
-        para = para[:200] + "..."
-    return para
+    for block in body.split("\n\n"):
+        para = _truncate_description(block)
+        if not para or para.startswith("#"):
+            continue
+        return para
+    return ""
 
 
 def _acquire_lock(wiki_root: Path, rel_path: str) -> Path:
