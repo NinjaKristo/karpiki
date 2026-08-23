@@ -384,27 +384,18 @@ status: open
 priority: p1
 effort: medium
 labels: [ingest-contract, skill]
-revisit_when: "Generic density/split session."
+revisit_when: "After the five-source A/B confirms the new contract."
 refs:
   - skills/karpathy-wiki-ingest/references/page-conventions.md
-  - skills/karpathy-wiki-ingest/SKILL.md (title-scope, step 7.5, numeric thresholds)
+  - skills/karpathy-wiki-ingest/SKILL.md
   - scripts/wiki-init.sh (seeded schema.md)
+  - tests/red/RED-source-count-split-siblings.md
 ```
 
-"Split a concept page: 2+ sources or 200+ lines" plus title-scope siblings
-plus missed-cross-link (step 7.5) plus reciprocal see-also plus
-`interlinking: every related page` produces fanout. Knowledge pages carry
-Title-scope notes and "do not merge" tours. Entity pages become source
-catalogs.
-
-Naturbiss canary after ~155 archived captures: 187 concept pages, mean ~248
-lines, Carl entity 4670 lines, `concepts/_index.md` 33 KB. A 31-word tweet
-became a 231-line page with two claim bullets.
-
-Contract fix is generic: augment the same knowledge object; related links
-live on the primary page; protocol decisions go to `log.md`; delete the extra
-7.5 pass. Split is judgment (distinct object), not source count. Not a
-validator hard-reject.
+Plugin defaults now augment the same knowledge object, write related links
+on the primary page, and log protocol choices. New wikis seed that split
+rule. Existing pages (Naturbiss siblings, entity catalogs) still need the
+A/B and a later overlay before resume. Not a validator hard-reject.
 
 ---
 

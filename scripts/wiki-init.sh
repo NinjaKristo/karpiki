@@ -115,9 +115,12 @@ ${role}
 Tags are evolved by the ingester; propose changes via schema edits, not ad-hoc.
 
 ## Numeric Thresholds
-- Split a concept page: 2+ sources or 200+ lines
+- Split a page when it holds two distinct knowledge objects, or it is still too long after dropping repetition. Two sources about the same object augment one page.
 - Archive a raw source: referenced by 5+ wiki pages
 - Restructure top-level category: 500+ pages within it
+
+## Page contract
+Plugin defaults live in the ingest page-conventions. This file may name extra frontmatter keys and extra body sections. If it names none, write only the plugin defaults.
 EOF
 fi
 

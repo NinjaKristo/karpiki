@@ -35,6 +35,22 @@ fi
 # page-conventions.md content
 grep -q -i 'cross-link' "${PAGE_REF}" || fail "page-conventions missing cross-link convention"
 grep -q -i 'frontmatter' "${PAGE_REF}" || fail "page-conventions missing frontmatter section"
+grep -q 'distinct knowledge object' "${PAGE_REF}" \
+  || fail "page-conventions missing object-based split"
+if grep -q '2+ sources or 200+ lines' "${PAGE_REF}"; then
+  fail "page-conventions still splits on source count"
+fi
+
+# Density contract lives in conventions; skill must not hunt extra siblings.
+if grep -q 'Missed-cross-link check' "${SKILL}"; then
+  fail "ingest skill still has a second missed-cross-link pass"
+fi
+if grep -q '2+ sources OR exceeds 200 lines' "${SKILL}"; then
+  fail "ingest skill still splits on source count"
+fi
+grep -q 'schema.md' "${SKILL}" || fail "ingest skill must read schema.md for extra keys"
+grep -q 'honest related list' "${SKILL}" \
+  || fail "ingest skill missing honest related-list interlinking"
 
 # No iron-law duplication
 if grep -q 'NO WIKI WRITE IN THE FOREGROUND' "${SKILL}"; then

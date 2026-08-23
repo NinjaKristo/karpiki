@@ -127,5 +127,22 @@ test_init_project_keeps_routing_out_of_tracked_config
 test_init_idempotent
 test_init_creates_git_repo_if_git_installed
 test_init_python_version_check_too_old
+test_init_schema_uses_object_split_and_page_contract() {
+  setup
+  bash "${INIT}" main "${TESTDIR}/wiki" >/dev/null
+  if grep -q '2+ sources or 200+ lines' "${TESTDIR}/wiki/schema.md"; then
+    echo "FAIL: seeded schema still splits on source count"
+    teardown
+    exit 1
+  fi
+  grep -q 'distinct knowledge objects' "${TESTDIR}/wiki/schema.md" \
+    || { echo "FAIL: seeded schema missing object-based split"; teardown; exit 1; }
+  grep -q '## Page contract' "${TESTDIR}/wiki/schema.md" \
+    || { echo "FAIL: seeded schema missing Page contract heading"; teardown; exit 1; }
+  echo "PASS: test_init_schema_uses_object_split_and_page_contract"
+  teardown
+}
+
 test_init_seed_list_creates_ideas_not_sources
+test_init_schema_uses_object_split_and_page_contract
 echo "ALL PASS"

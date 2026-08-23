@@ -62,14 +62,40 @@ related, etc.) but the quality block stays untouched.
 If `rated_by: ingester` (or absent), the ingester re-rates on every
 re-ingest.
 
-## Page size threshold
+`interlinking` scores whether the related list on the pages just written
+is honest and useful, not whether every nearby page was edited.
 
-Split a page when:
-- It crosses 200 lines, OR
-- It accumulates 2+ raw sources covering distinct subtopics.
+## Body
 
-The ingester decides; the title-scope check (see ingest skill) catches
-the case where new evidence is broader than the existing page's slug.
+The page is knowledge. Default sections, in this order:
+
+- synthesis of the durable claims
+- evidence (paths, dates, short quotes)
+- limitations that add knowledge for this source
+- related (a short list of pages whose objects were used)
+
+Protocol choices (why this page, why a sibling, why not merged) go in
+`log.md`.
+
+## Targets
+
+Choose one primary page for the capture's main knowledge object. Touch
+another page only when that page's claims change. Entity pages are maps
+(who or what, main frameworks, pointers), not append-only source catalogs.
+
+## Split
+
+Augment the existing page when the new source is the same knowledge
+object. Create a sibling only for a distinct knowledge object (different
+mechanism, surface, or decision). Split an oversized page when it still
+holds two objects, or is still too long after dropping repetition. Two
+sources about the same object stay on one page.
+
+## Schema overlay
+
+After reading `<wiki>/schema.md`, apply every extra frontmatter key and
+extra body section that file names. If it names none, write only these
+plugin defaults.
 
 ## Category directory
 

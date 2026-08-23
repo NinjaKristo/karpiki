@@ -194,8 +194,10 @@ that schema here.
 
 ## Page format
 
-See `references/page-conventions.md` for the canonical page
-frontmatter and cross-link conventions.
+See `references/page-conventions.md` for frontmatter, body, targets,
+split, and schema overlay. After reading `<wiki>/schema.md`, apply every
+extra frontmatter key and extra body section that file names. If it names
+none, write only the plugin defaults.
 
 All generated page metadata timestamps (`created`, `updated`, `rated_at`) must
 be real UTC values. In shell, generate them with
@@ -271,11 +273,15 @@ A thin-capture rejection is a feature, not a failure.
    - Always call `python3 "${WIKI_PLUGIN_ROOT}/scripts/wiki-manifest.py" build "${WIKI_ROOT}"` at the end of ingest to refresh sha256 and `last_ingested`. This is mandatory; the manifest is the drift-detection source of truth.
    - **Iron rule:** `origin` is the capture's `evidence` field value — never the string `"file"`, `"conversation"` (when a real path was available), `"mixed"`, or the `evidence_type`/`capture_kind`. If `capture_kind == "chat-only"` AND the capture has no real path, `origin` is the literal string `"conversation"`. Any other value is a validator failure.
    - **sha256 short-circuit.** If `raw/<basename>` already exists AND `sha256(new) == manifest[raw/<basename>].sha256`, the evidence content is identical — skip content re-ingest of this capture and append `## [<timestamp>] skip | <capture-basename> — sha match, no-op` to `log.md`. You MUST still perform step 9 when `promotion_policy: "selective"`; a duplicate content result does not satisfy a missing promotion decision. Archive the capture normally only after step 9. This prevents re-ingesting the same research file twice without skipping required routing state.
-   - **Title-scope check.** Before merging into an existing wiki page in step 6, compare the new evidence's scope to the existing page's slug. Scope is the set of distinct entities (product names, versions, model names, concepts) the evidence covers. If the existing page's slug is NARROWER than the new evidence's scope (example: existing `concepts/gemma4-27b-hardware-requirements.md` vs new evidence covering a 27B+31B comparison), do NOT force-merge the broader content into the narrower-titled page. Instead, either (a) create a sibling concept page with a scope-appropriate slug (e.g. `concepts/gemma4-27b-vs-31b-hardware-comparison.md`) and cross-link both, or (b) rename the existing page's slug AND frontmatter title to cover the new scope, then merge — only if no other wiki page currently links to the old slug (if any do, use option (a) to avoid broken links). Log which option was taken in `log.md`.
+   - **Same object, augment.** If an existing page is the same knowledge
+     object as the new evidence, merge into it. Create a sibling only when
+     the evidence is a different object. Log the choice in `log.md`.
    - **Overwrite-detection recovery.** If `raw/<basename>` already exists AND the new sha256 differs from the manifest entry AND the manifest's `last_ingested` is within the last 60 minutes (the evidence file on disk was replaced since the previous ingest), treat this as an overwrite situation: copy the new evidence to `raw/<basename>` AS NORMAL, but also append `## [<timestamp>] overwrite | <capture-basename> — raw sha changed since <previous_ingested_iso>, previous referenced_by: [<list>]` to `log.md`. Proceed with the rest of step 4 and the title-scope check in step 6 as above. The overwrite is not an error — it is the exact scenario from the failure-mode transcript (two research agents both wrote to `2026-04-24-gemma4-hardware.md`), and the title-scope check catches the content-divergence part.
 
 5. **Decide target pages by extracting knowledge objects first.**
-   `suggested_pages` is a hint; orientation may change it.
+   `suggested_pages` is a hint; orientation may change it. Choose one
+   primary page for the main object. Touch another page only when that
+   page's claims change.
 
    Canonical wiki pages are knowledge objects, not source summaries. A
    capture can produce zero, one, or several durable objects. Before choosing
@@ -310,12 +316,11 @@ A thin-capture rejection is a feature, not a failure.
 6. **For each target page**:
    a. Acquire a page lock (`wiki_lock_wait_and_acquire`).
    b. Read current page content (read-before-write).
-   c. Merge new material. Do NOT replace existing claims — add dated findings, use `contradictions:` frontmatter if they disagree.
-   d. Ensure every page you changed, including an existing page that only got
-      a see-also link or timestamp update, includes the current raw evidence
-      path in `sources:` and is included in the raw manifest entry's
-      `referenced_by` list. The completion helper validates the manifest, so
-      do not treat cross-link-only updates as source-free.
+   c. Merge new material. Keep existing claims; add dated findings; use
+      `contradictions:` frontmatter if they disagree. On the primary page,
+      write a short related list for objects you used.
+   d. Every page whose claims changed includes the current raw evidence
+      path in `sources:` and in the raw manifest `referenced_by` list.
    e. Release lock (`wiki_lock_release`).
 
 6.5. **Self-rate every page you just touched.** Use your own judgment as the current ingester; do not launch another model. For each page, score four dimensions (1-5 each), compute `overall` as `round(mean, 2)`, and write the following into the page's frontmatter (creating the `quality:` block if missing, preserving `rated_by: human` if the page already has it):
@@ -333,7 +338,7 @@ A thin-capture rejection is a feature, not a failure.
    - accuracy: does every claim map to evidence in `sources:`?
    - completeness: would a future-you searching for this topic find enough to act?
    - signal: dense knowledge vs restatement?
-   - interlinking: does it link to every related page the wiki contains?
+   - interlinking: is the related list on the pages you wrote an honest related list?
 
    **Never clobber `rated_by: human`.** If the existing page has `quality.rated_by == "human"`, skip this step for that page entirely. See `references/page-conventions.md` for the full quality block contract.
 
@@ -350,9 +355,7 @@ A thin-capture rejection is a feature, not a failure.
 
    If the script exits non-zero (lock timeout, discovery failure), log the failure to `log.md` and continue. The next ingest catches up because indexes are a function of directory state.
 
-7.5. **Missed-cross-link check.** Using your own judgment as the current ingester, compare the freshly edited page with the relevant `_index.md` (the page's parent directory's index, NOT root `index.md`). Identify existing pages it obviously should link to but currently does not. Do not delegate this check to another model. For every clear match, insert a markdown link at a relevant point in the page (or append to a `## See also` section, creating it if absent), re-acquire the page lock, save, release, and re-validate. Do not propose new pages in this step.
-
-7.6. **Per-`_index.md` size threshold check.** After step 7's invocation, check the size of every `_index.md` the script touched:
+7.5. **Per-`_index.md` size threshold check.** After step 7's invocation, check the size of every `_index.md` the script touched:
 
    ```bash
    for idx in "${TOUCHED_INDEXES[@]}"; do
@@ -467,7 +470,7 @@ Additionally: after running the validator, also run `wiki-lint-tags.py` if it ex
 
 ## Numeric thresholds (from schema.md)
 
-- **Split a concept page** when it has material from 2+ sources OR exceeds 200 lines.
+- **Split a page** per `references/page-conventions.md`: distinct knowledge object, or still too long after dropping repetition. Same object: augment.
 - **Archive a raw source** when it's referenced by 5+ wiki pages (move to `raw/archive/`, update references).
 - **Restructure a top-level category** when it contains 500+ pages.
 - **Split or atom-ize `index.md`** when it exceeds ~200 entries / 8KB / 2000 tokens — orientation degrades beyond that. Evidence: Chroma Context Rot research shows retrieval accuracy starts degrading around 1,000 tokens of preamble; Obsidian MOC practitioners cap at 25 items per MOC; Starmorph flags 100-200 pages as the scale-out point.
