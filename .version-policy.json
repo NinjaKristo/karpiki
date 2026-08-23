@@ -9,5 +9,14 @@
   "publishPolicy": "manual",
   "releaseBranch": "main",
   "wipPrefixes": ["wip:"],
-  "mirrors": []
+  "mirrors": [
+    {
+      "path": ".codex-plugin/plugin.json",
+      "pointer": "/version"
+    },
+    {
+      "path": ".claude-plugin/plugin.json",
+      "pointer": "/version"
+    }
+  ]
 }

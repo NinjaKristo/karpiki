@@ -177,29 +177,25 @@ status: open
 priority: p0
 effort: small
 labels: [versioning, packaging]
-revisit_when: "Next versionctl session: declare plugin.json mirrors."
+revisit_when: "When tagging a release, or when rewriting README/MANUAL to stop pinning a version in prose."
 refs:
   - VERSION
-  - .version-policy.json (mirrors currently [])
+  - .version-policy.json
   - .codex-plugin/plugin.json
   - .claude-plugin/plugin.json
   - README.md
   - MANUAL.md
 ```
 
-Observed 2026-08-23: `VERSION` `0.3.13`; both plugin manifests, README status,
-and MANUAL title `0.3.2`; no git tags; no GitHub Releases. Policy says VERSION
-is canonical, every deliverable bumps, every version is tagged, distribution
-is released-tags-only, and mirrors is empty. README tells users to install
-from mutable `main`.
+Plugin manifests are versionctl mirrors of `VERSION`. That closes checkout
+identity between `VERSION` and both `plugin.json` files. Remaining drift:
+README status and MANUAL title still pin an older prose version; there are
+still no git tags or GitHub Releases; README still tells users to install
+from mutable `main` while policy says `released-tags-only`.
 
-The tree claims one public version and behaves like an undocumented internal
-revision plus a frozen package version. Fix is declaring the two plugin.json
-files as versionctl mirrors, not an AGENTS.md reminder and not a fork of
-versionctl. Prose versions in README/MANUAL are not mirrors (markdown).
-
-Mirrors make the checkout honest. They do not rewrite LaunchAgent or the
-Codex cache until someone reinstalls the plugin.
+Markdown prose is not a versionctl mirror. A checkout bump still does not
+rewrite LaunchAgent or the Codex cache folder until plugin reinstall plus
+`scheduler install`.
 
 ---
 
@@ -210,7 +206,7 @@ status: open
 priority: p1
 effort: small
 labels: [versioning, docs]
-revisit_when: "When plugin.json mirrors are declared, or when rewriting CHANGELOG."
+revisit_when: "When rewriting CHANGELOG to one heading dialect."
 refs:
   - CHANGELOG.md
   - agentsmd tools/versionctl changelog.py (`## [version] - date`)
