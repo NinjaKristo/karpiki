@@ -89,6 +89,17 @@ def _truncate_description(text: str) -> str:
     return compact
 
 
+def _tags_suffix(fm: dict) -> str:
+    """Append [tag, ...] so read Step B can count tag hits from the index."""
+    tags = fm.get("tags") or []
+    if not isinstance(tags, list):
+        return ""
+    names = [str(t).strip() for t in tags if str(t).strip()]
+    if not names:
+        return ""
+    return " [" + ", ".join(names) + "]"
+
+
 def _description(fm: dict, page: Path) -> str:
     """Return summary, else the first non-heading body paragraph, truncated."""
     summary = fm.get("summary")
@@ -160,7 +171,8 @@ def _build_directory_index(directory: Path, wiki_root: Path, reserved: set[str])
             title = fm.get("title", p.stem)
             qual = _quality(fm)
             desc = _description(fm, p)
-            entry = f"- [{title}]({p.name}) — {qual}{desc}".rstrip(" —")
+            tags = _tags_suffix(fm)
+            entry = f"- [{title}]({p.name}) — {qual}{desc}{tags}".rstrip(" —")
             lines.append(entry)
     lines.append("")
 

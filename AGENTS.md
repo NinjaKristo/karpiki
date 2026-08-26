@@ -18,9 +18,10 @@ replacement, and not a work-package manifest.
 
 ## Recent Changes
 
-- 2026-08-26: Ingest adds `sources:` only when claims change; related-only
-  edits do not append raw paths. Read Step B drops terms that match more
-  than half an index.
+- 2026-08-26: Read Step B uses per-index document frequency: rare terms
+  select, common terms (6+ hits, including tags on the index line)
+  AND-filter unless that would empty the set. Related-only ingest does
+  not append `sources:`.
 - 2026-08-21: Split the old combined backlog into `CHANGELOG.md`, `TODO.md`,
   `ISSUES.md`, and `IDEAS.md`.
 - 2026-08-21: Made `AGENTS.md` the canonical regular file and kept

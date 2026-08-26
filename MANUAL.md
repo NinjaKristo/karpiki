@@ -277,7 +277,7 @@ Set `dispatch_mode = scheduled` only when that external scheduler actually exist
 Every step is deterministic. No agent judgement at branch points.
 
 - **Step A — Orient.** Read `<wiki>/schema.md` + the relevant `<wiki>/<category>/_index.md`. Once per session; subsequent questions reuse the cached content (marginal cost near-zero).
-- **Step B — Count signal-matching candidates** in `_index.md`. Drop a term that matches more than half the index entries (title or one-liner); if every term is common, keep the original set. Then branch on count: `0 → Step F`, `1-5 → Step C`, `6+ → Step E`.
+- **Step B — Count signal-matching candidates** in `_index.md` (title, one-liner, tag list). A term that hits 6 or more entries is common. Rare terms select (or any common term if there is no rare term). Then AND each common term unless that would leave zero pages. Frequency on the walked index is the test; do not denylist tag names. Then branch on count: `0 → Step F`, `1-5 → Step C`, `6+ → Step E`.
 - **Step C — Inline read** all 1-5 candidates. Sufficient to answer the question? `YES → cite + answer (done)`. `NO → Step D`.
 - **Step D — Gap-fill via web search** for the specific claim the wiki did not cover. Cite both wiki and web. ALWAYS write a capture noting the gap (the wiki should grow toward questions it failed to answer fully).
 - **Step E — Spawn an Explore subagent** for breadth questions (6+ candidates). Subagent runs the orient procedure inside its own context (no page-count cap). Returns synthesis with citations. Main agent uses the synthesis as the answer's basis. No word cap on the synthesis; target shape is "terse but complete."

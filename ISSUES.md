@@ -422,23 +422,28 @@ special-case brand field names in the plugin builder.
 ## P1: common signal terms flood read Step B
 
 ```yaml
-status: open
+status: shipped
 priority: p1
 effort: small
 labels: [read-protocol, retrieval]
-revisit_when: "After a Q2 retrieval glance on the overlay temp wiki with the half-index drop."
+shipped_in: 0.3.22
 refs:
   - skills/karpathy-wiki-read/SKILL.md (Step B)
+  - scripts/wiki-build-index.py (_tags_suffix)
+  - tests/red/RED-read-high-df-terms.md
   - tests/red/RED-read-common-signal-terms.md
-  - tests/acceptance/grok/2026-08-23-density-contract-ab.md
 ```
 
-2026-08-25 matched retrieval: "what did Carl say about CRO before $500k?"
-matched 9 overlay pages and 13 live-cherry pages because the owner name
-is in every title or one-liner. Gold claims were on one page. Step B now
-drops a term that hits more than half the index entries and keeps the
-original set only when every term is common. Skill prose, not a matcher
-binary. Old pages still poison answers with Status banners until rewritten.
+v0.3.20 dropped terms matching more than half an index on title or
+one-liner. That missed tags (so `cro` still selected every tagged
+page) and does not scale: half of a large category is dozens of
+hits, so owner tags (`carl-weische`, `davie-fogarty`) stay "rare."
+v0.3.22 censuses title, one-liner, and the tag list on the index
+line. A term that hits 6 or more entries is common (the Explore
+band). Rare terms select; common terms AND-filter unless that
+would empty the set. No tag-name denylist. Rebuild wiki indexes
+so tag suffixes exist. Status banners on old pages are a separate
+rewrite issue.
 
 ---
 

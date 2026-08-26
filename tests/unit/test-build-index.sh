@@ -249,6 +249,36 @@ EOF
   teardown
 }
 
+test_index_appends_tags() {
+  setup
+  cat > "${WIKI}/concepts/drawer.md" <<'EOF'
+---
+title: "Cart drawer playbook"
+type: concepts
+tags: [cart, drawer]
+sources: []
+summary: "Nudge, proof, shipping bar."
+created: "2026-04-26T12:00:00Z"
+updated: "2026-04-26T12:00:00Z"
+quality:
+  accuracy: 4
+  completeness: 4
+  signal: 4
+  interlinking: 4
+  overall: 4.00
+  rated_at: "2026-04-26T12:00:00Z"
+  rated_by: ingester
+---
+body
+EOF
+  python3 "${BUILD}" --wiki-root "${WIKI}" --rebuild-all
+  grep -q '\[cart, drawer\]' "${WIKI}/concepts/_index.md" \
+    || { echo "FAIL: tags missing from index"; cat "${WIKI}/concepts/_index.md"; teardown; exit 1; }
+  echo "PASS: test_index_appends_tags"
+  teardown
+}
+
 test_index_skips_leading_heading_without_summary
 test_index_prefers_summary_over_body
+test_index_appends_tags
 echo "all tests passed"

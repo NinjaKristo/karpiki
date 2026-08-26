@@ -35,13 +35,14 @@ If you have already oriented earlier in this session, skip to Step B — the sch
 
 Extract the question's signal terms: meaningful nouns, proper-noun phrases, technical terms, version numbers, tool names. Skip stopwords ("the", "what", "how", "do", "is").
 
-Drop any remaining term that substring-matches (case-insensitive) more than half of the entries in the `_index.md` you are walking (title or one-liner). Recount candidates with what is left. If every term is common, keep the original set.
+Walk the relevant `_index.md` (already in memory from Step A). For each term, count how many entries it substring-matches (case-insensitive) in the title, the one-liner, or the tag list on that line. A term that hits 6 or more entries is a common term (the Explore band). Other hitting terms are rare terms. Do not keep a denylist of tag names; frequency on this index is the only test.
 
-Walk the relevant `_index.md` (already in memory from Step A). A page is a candidate if ANY signal term:
+Build the candidate set as follows:
 
-- Substring-matches its title (case-insensitive), OR
-- Matches a tag (exact, case-insensitive), OR
-- Appears in its one-line summary.
+- If there is at least one rare term, start with pages that match at least one rare term. Otherwise start with pages that match at least one common term.
+- Then, for each common term, drop candidates that do not match it, unless that would leave zero pages; in that case skip that term.
+
+A page matches a term when that term substring-hits its title, one-liner, or tag list.
 
 Count the candidates. Branch on count:
 
@@ -81,7 +82,7 @@ Spawn an Explore subagent with this prompt shape:
 >
 > Wiki path: `<wiki absolute path>`
 >
-> Run the orient procedure (read schema.md and the relevant _index.md), identify candidate pages by signal-term match, read all candidates in full (no cap on page count — your context is isolated), and return a synthesis.
+> Run the orient procedure (read schema.md and the relevant _index.md), identify candidate pages with the same rare/common census as Step B (title, one-liner, tag list; 6 or more hits is common; rare terms select; common terms AND-filter unless that would leave zero pages), read all candidates in full (no cap on page count; your context is isolated), and return a synthesis.
 >
 > The synthesis must:
 > - Cite every page it draws from (path + one-line relevance note per page).
