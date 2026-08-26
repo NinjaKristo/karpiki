@@ -32,6 +32,7 @@ group_for_test() {
     unit/test-ingest-skill-provider-neutral.sh|\
     unit/test-ingest-skill.sh|\
     unit/test-loader-has-capture-resist-table.sh|\
+    unit/test-read-skill-common-signal-terms.sh|\
     unit/test-read-skill-unconfigured-routing.sh|\
     unit/test-session-start-loader-injection.sh|\
     unit/test-session-start-payload-budget.sh|\

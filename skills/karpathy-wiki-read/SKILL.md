@@ -35,6 +35,8 @@ If you have already oriented earlier in this session, skip to Step B — the sch
 
 Extract the question's signal terms: meaningful nouns, proper-noun phrases, technical terms, version numbers, tool names. Skip stopwords ("the", "what", "how", "do", "is").
 
+Drop any remaining term that substring-matches (case-insensitive) more than half of the entries in the `_index.md` you are walking (title or one-liner). Recount candidates with what is left. If every term is common, keep the original set.
+
 Walk the relevant `_index.md` (already in memory from Step A). A page is a candidate if ANY signal term:
 
 - Substring-matches its title (case-insensitive), OR

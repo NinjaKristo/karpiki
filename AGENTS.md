@@ -18,6 +18,8 @@ replacement, and not a work-package manifest.
 
 ## Recent Changes
 
+- 2026-08-26: Read Step B drops signal terms that match more than half
+  of an index, so a corpus name on every page is not a discriminator.
 - 2026-08-21: Split the old combined backlog into `CHANGELOG.md`, `TODO.md`,
   `ISSUES.md`, and `IDEAS.md`.
 - 2026-08-21: Made `AGENTS.md` the canonical regular file and kept
@@ -26,8 +28,6 @@ replacement, and not a work-package manifest.
   `ISSUES.md` boundary clarification.
 - 2026-08-20: Released v0.3.1 global scheduler coordination with one
   machine-wide LaunchAgent and fixed ingest limits.
-- 2026-08-20: Released v0.3.0 provider-aware dispatch, selective promotion,
-  and Codex plugin packaging.
 
 ## If you are an AI agent
 

@@ -1,7 +1,7 @@
 ---
 title: karpathy-wiki issues
 status: living-document
-last_reviewed: 2026-08-23
+last_reviewed: 2026-08-26
 ---
 
 # ISSUES
@@ -419,6 +419,29 @@ special-case brand field names in the plugin builder.
 
 ---
 
+## P1: common signal terms flood read Step B
+
+```yaml
+status: open
+priority: p1
+effort: small
+labels: [read-protocol, retrieval]
+revisit_when: "After a Q2 retrieval glance on the overlay temp wiki with the half-index drop."
+refs:
+  - skills/karpathy-wiki-read/SKILL.md (Step B)
+  - tests/red/RED-read-common-signal-terms.md
+  - tests/acceptance/grok/2026-08-23-density-contract-ab.md
+```
+
+2026-08-25 matched retrieval: "what did Carl say about CRO before $500k?"
+matched 9 overlay pages and 13 live-cherry pages because the owner name
+is in every title or one-liner. Gold claims were on one page. Step B now
+drops a term that hits more than half the index entries and keeps the
+original set only when every term is common. Skill prose, not a matcher
+binary. Old pages still poison answers with Status banners until rewritten.
+
+---
+
 ## P2: capture skill still documents `.wiki-mode`
 
 ```yaml
@@ -529,7 +552,7 @@ status: watchpoint
 priority: p1
 effort: n/a
 labels: [canary, ingest-contract]
-revisit_when: "After the generic density A/B; do not resume the 4114-unit drain before that."
+revisit_when: "After object-first schema and common-term read; live compact vs reingest vs index-only is still open. Do not resume the 4114-unit drain."
 refs:
   - ~/dev/naturbiss/wiki
   - ~/dev/naturbiss/ingest-ready/carl-weische
