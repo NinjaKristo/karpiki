@@ -320,7 +320,9 @@ A thin-capture rejection is a feature, not a failure.
       `contradictions:` frontmatter if they disagree. On the primary page,
       write a short related list for objects you used.
    d. Every page whose claims changed includes the current raw evidence
-      path in `sources:` and in the raw manifest `referenced_by` list.
+      path in `sources:`, in Evidence, and in the raw manifest
+      `referenced_by` list. A related-only edit is not a claims change;
+      do not append `sources:`.
    e. Release lock (`wiki_lock_release`).
 
 6.5. **Self-rate every page you just touched.** Use your own judgment as the current ingester; do not launch another model. For each page, score four dimensions (1-5 each), compute `overall` as `round(mean, 2)`, and write the following into the page's frontmatter (creating the `quality:` block if missing, preserving `rated_by: human` if the page already has it):

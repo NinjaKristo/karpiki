@@ -442,6 +442,27 @@ binary. Old pages still poison answers with Status banners until rewritten.
 
 ---
 
+## P1: related-only ingest inflates sources:
+
+```yaml
+status: open
+priority: p1
+effort: small
+labels: [ingest-contract, provenance]
+revisit_when: "After compact recipe uses Evidence-cited sources only; ingest 6d related-only rule is in the skill."
+refs:
+  - skills/karpathy-wiki-ingest/SKILL.md (step 6d)
+  - skills/karpathy-wiki-ingest/references/page-conventions.md
+  - tests/red/RED-see-also-inflates-sources.md
+```
+
+See-also / do-not-merge edits appended each capture's raw path to
+`sources:` even when the page's claims did not change. Compact must
+list only files cited in Evidence. Skill now: related-only is not a
+claims change.
+
+---
+
 ## P2: capture skill still documents `.wiki-mode`
 
 ```yaml

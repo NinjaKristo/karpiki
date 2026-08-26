@@ -31,6 +31,11 @@ quality:
 one-liner. Do not start it with `#`. Extra frontmatter keys named in
 that wiki's `schema.md` are allowed; they are not plugin defaults.
 
+Every `sources:` entry is cited in Evidence. Add the current raw path
+to `sources:` only when this page's **claims** changed. A related-only
+edit is not a claims change; do not append `sources:`. Why a sibling
+was not merged belongs in `log.md`.
+
 ## Cross-link convention
 
 All cross-links in the page body and the `related:` frontmatter use

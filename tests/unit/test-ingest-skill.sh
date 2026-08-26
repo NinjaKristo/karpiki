@@ -51,6 +51,10 @@ fi
 grep -q 'schema.md' "${SKILL}" || fail "ingest skill must read schema.md for extra keys"
 grep -q 'honest related list' "${SKILL}" \
   || fail "ingest skill missing honest related-list interlinking"
+grep -q 'related-only' "${SKILL}" \
+  || fail "ingest skill does not say related-only edits are not claims changes"
+grep -q 'related-only' "${PAGE_REF}" \
+  || fail "page-conventions missing related-only sources: rule"
 
 # No iron-law duplication
 if grep -q 'NO WIKI WRITE IN THE FOREGROUND' "${SKILL}"; then
