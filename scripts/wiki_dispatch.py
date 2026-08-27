@@ -1023,18 +1023,19 @@ def _move_processing_to_failed(root: Path, processing: Path) -> Path | None:
 def _refill_after_worker(root: Path, config: dict[str, Any]) -> None:
     if _test_mode() and os.environ.get("WIKI_DISPATCH_TEST_NO_REFILL") == "1":
         return
-    # Test mode must refill this wiki locally. tick_all() only sees
-    # LaunchAgent-registered wikis, not temporary fixtures.
-    if not _test_mode():
-        try:
-            from wiki_scheduler import global_scheduler_installed, tick_all
-
-            if global_scheduler_installed():
-                tick_all()
-                return
-        except Exception:
-            pass
+    # Always refill this wiki first. tick_all() only sees registered
+    # scheduler wikis, so it cannot recover a fixture or a wiki that just
+    # freed its own slot.
     dispatch_tick(root, config, "worker_completion")
+    if _test_mode():
+        return
+    try:
+        from wiki_scheduler import global_scheduler_installed, tick_all
+
+        if global_scheduler_installed():
+            tick_all()
+    except Exception:
+        pass
 
 
 def _terminate_provider_group(

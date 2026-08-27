@@ -219,7 +219,11 @@ config = json.load(open(sys.argv[1], encoding="utf-8"))
 ingest = config["ingest"]
 assert ingest["default_profile"] == "codex_low"
 assert ingest["fallback_profile"] == "codex_low_model-b"
-assert set(ingest["profiles"]) == {"codex_low", "codex_low_model-b"}
+assert {"codex_low", "codex_low_model-b"} <= set(ingest["profiles"])
+assert ingest["profiles"]["codex_low"]["model"] == "model-a"
+assert ingest["profiles"]["codex_low_model-b"]["model"] == "model-b"
+assert config["doctor"]["default_profile"] == "grok_xhigh"
+assert config["doctor"]["fallback_profile"] == "codex_max"
 PY
   echo "PASS: test_same_provider_and_effort_can_use_distinct_models"
 }
