@@ -19,6 +19,12 @@ grep -q '.wiki-pending/rewrite-jobs/' "${SKILL}" || fail "skill missing rewrite-
 grep -q 'wiki-schema-patch.py' "${SKILL}" || fail "skill must patch schema.md"
 grep -q 'wiki-validate-page.py' "${SKILL}" || fail "skill must name page validation script"
 grep -q 'wiki-lint-tags.py' "${SKILL}" || fail "skill must name tag lint script"
+grep -q 'wiki-collapse-tag.py' "${SKILL}" || fail "skill must collapse tags via helper"
+grep -q 'same-idea' "${SKILL}" || fail "skill must use same-idea collapse"
+grep -q 'not the same idea' "${SKILL}" \
+  || fail "skill must skip false synonym pairs"
+grep -q 'Do not write' "${SKILL}" || fail "skill must forbid synonym-pair bullets"
+grep -q 'synonym pairs' "${SKILL}" || fail "skill must name synonym pairs as forbidden"
 grep -qi 'frontmatter' "${SKILL}" || fail "skill missing frontmatter edits"
 grep -qi 'related' "${SKILL}" || fail "skill missing related-list edits"
 

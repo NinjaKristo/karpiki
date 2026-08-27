@@ -468,7 +468,7 @@ If the validator exits non-zero for any page, fix the mechanical issue and re-va
 
 If a contradiction surfaces, add `contradictions:` frontmatter pointing to the conflicting page — do NOT resolve it during ingest. (Contradictions are a judgement call, not a validator violation.)
 
-Additionally: after running the validator, also run `wiki-lint-tags.py` if it exists in the plugin. New tags are recorded by `wiki-schema-patch.py` on this capture. Do not file a tag schema-proposal capture.
+Additionally: after running the validator, also run `wiki-lint-tags.py` if it exists in the plugin. New tags are recorded by `wiki-schema-patch.py` on this capture. Do not wiki-wide merge tags; doctor collapses duplicate spellings. Do not file a tag schema-proposal capture.
 
 ## Numeric thresholds (from schema.md)
 
