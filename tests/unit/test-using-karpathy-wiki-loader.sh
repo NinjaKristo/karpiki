@@ -19,9 +19,13 @@ head -20 "${LOADER}" | grep -q '^description:' || fail "frontmatter missing desc
 awk '/^---/ {n++; if (n==2) {flag=1; next}} flag && n==2 {print}' "${LOADER}" | head -30 \
   | grep -q '<SUBAGENT-STOP>' || fail "missing <SUBAGENT-STOP> block near top of body"
 
-# Pointers to the two on-demand skills
+# Pointers to the on-demand skills
 grep -q 'karpathy-wiki-capture' "${LOADER}" || fail "no pointer to karpathy-wiki-capture"
 grep -q 'karpathy-wiki-ingest' "${LOADER}" || fail "no pointer to karpathy-wiki-ingest"
+grep -q 'karpathy-wiki-doctor' "${LOADER}" || fail "no pointer to karpathy-wiki-doctor"
+if grep -qi 'wiki is broken\|broken wiki' "${LOADER}"; then
+  fail "loader must not announce a broken wiki"
+fi
 
 # Iron laws and announce-line contract carried forward
 grep -q 'NO WIKI WRITE IN THE FOREGROUND' "${LOADER}" || fail "missing iron law: foreground"

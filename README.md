@@ -24,7 +24,7 @@ No global `wiki` command is required.
 - `wiki scheduler install|uninstall|enable|disable|status|tick-all` — manage the one machine-wide macOS LaunchAgent adapter and per-wiki activation.
 - `wiki tick` — run one short, bounded dispatcher pass (also usable from an external scheduler).
 - `wiki init-main` — bootstrap `~/.wiki-pointer` (interactive).
-- `wiki doctor` — deep lint + smartest-model re-rate of quality blocks. **Not yet implemented (stub returns "not implemented" exit 1).** Deferred to a future ship; tracked in `TODO.md`.
+- `wiki doctor` — detached census: tests, schema/tags/frontmatter/related, rewrite jobs. Does not rewrite page bodies.
 
 The plugin handles both a main knowledge base and per-project wikis via the
 `wiki-resolve.sh` resolver. The default main-wiki location is `~/wiki/`, but

@@ -158,31 +158,24 @@ cycle, v2.5 applies the same pattern to the ops log with confidence
 (and reuses the same render-on-demand machinery).
 
 ---
-## Real `wiki doctor` implementation (not a stub)
+## Doctor quality re-rate and orphan merge (after census)
 
 ```yaml
 status: deferred
-priority: p1
+priority: p2
 effort: high
-labels: [post-mvp, quality]
+labels: [quality, rewriter]
 revisit_when:
-  "After 5-10 real-session ingests accumulate with ingester-stubbed quality
-  ratings, so there's meaningful signal for the smart-model re-rate to work on.
-  Also triggered if `wiki status` starts reporting a persistent cluster of pages
-  below 3.5 quality."
+  "After the census doctor has run on a live wiki and rewrite jobs show that
+  quality re-rate, synonym merge, or orphan repair still need a dedicated
+  pass beyond schema/tags/frontmatter/related."
 refs:
-  - bin/wiki (currently exits 1 with "not implemented")
-  - skills/karpathy-wiki-ingest/SKILL.md "Quality ratings" section (defines the
-    contract doctor must satisfy)
-  - docs/planning/2026-04-22-karpathy-wiki-v2.md (scope-cut to stub in v1)
+  - skills/karpathy-wiki-doctor/SKILL.md
+  - skills/karpathy-wiki-ingest/SKILL.md "Quality ratings" section
 ```
 
-`wiki doctor` is stubbed in v2 (`bin/wiki doctor` exits 1 with "not
-implemented"). Real implementation re-rates every page's `quality:` block with
-the smartest available model, fixes broken cross-references, consolidates
-tag-drift synonyms, and auto-archives raw sources that are referenced by 5+ wiki
-pages. Must NEVER clobber `rated_by: human` blocks. Should emit a summary of
-changes made for user review.
+`wiki doctor` now runs a detached census. It still does not rewrite page
+bodies or re-rate quality blocks; those remain a later rewriter.
 
 ---
 ## Real test coverage for SKILL.md prose rules

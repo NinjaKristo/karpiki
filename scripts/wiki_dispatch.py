@@ -26,6 +26,8 @@ from typing import Any, TextIO
 
 from wiki_config import (
     ConfigError,
+    RECOMMENDED_DOCTOR_DEFAULT,
+    RECOMMENDED_DOCTOR_FALLBACK,
     ensure_scheduler_runtime_config,
     scheduler_slot_root,
     validate_runtime_config,
@@ -574,9 +576,11 @@ def _test_mode() -> bool:
 def _spawn_worker(
     root: Path,
     lease_path: Path,
-    processing: Path,
+    processing: Path | None,
     run_id: str,
     profile: str,
+    *,
+    job: str = "ingest",
 ) -> subprocess.Popen[bytes]:
     if _test_mode() and os.environ.get("WIKI_DISPATCH_TEST_SPAWN_FAILURE") == "1":
         raise OSError("injected worker spawn failure")
@@ -589,13 +593,18 @@ def _spawn_worker(
         str(root),
         "--lease",
         str(lease_path),
-        "--capture",
-        str(processing),
         "--run-id",
         run_id,
         "--profile",
         profile,
+        "--job",
+        job,
     ]
+    if processing is not None:
+        command.extend(["--capture", str(processing)])
+    env = os.environ.copy()
+    if job == "doctor":
+        env["WIKI_JOB"] = "doctor"
     log_path = root / ".ingest.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("ab", buffering=0) as log:
@@ -606,7 +615,7 @@ def _spawn_worker(
             stderr=log,
             close_fds=True,
             start_new_session=True,
-            env=os.environ.copy(),
+            env=env,
         )
 
 
@@ -928,7 +937,12 @@ def _test_provider_command(root: Path) -> tuple[list[str], str]:
     if mode == "success_no_complete":
         return [sys.executable, "-c", "raise SystemExit(0)"], mode
     if mode == "complete_success":
-        helper = Path(__file__).resolve().parent / "wiki-complete-ingest.sh"
+        helper_name = (
+            "wiki-complete-doctor.sh"
+            if os.environ.get("WIKI_JOB") == "doctor"
+            else "wiki-complete-ingest.sh"
+        )
+        helper = Path(__file__).resolve().parent / helper_name
         return ["/bin/bash", str(helper)], mode
     if mode == "needs_more_detail":
         code = (
@@ -957,6 +971,9 @@ def _provider_environment(root: Path, processing: Path, run_id: str) -> dict[str
             "WIKI_PLUGIN_ROOT": str(Path(__file__).resolve().parent.parent),
         }
     )
+    job = os.environ.get("WIKI_JOB")
+    if job:
+        environment["WIKI_JOB"] = job
     return environment
 
 
@@ -1340,6 +1357,442 @@ def run_worker(
         return 0
 
 
+def read_doctor_events(wiki: str | Path) -> list[dict[str, Any]]:
+    path = Path(wiki) / ".doctor-runs.jsonl"
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        return []
+    except OSError as exc:
+        raise DispatchError(f"wiki dispatch: cannot read doctor history: {exc}") from exc
+    events: list[dict[str, Any]] = []
+    for chunk in raw.split(b"\n"):
+        if not chunk.strip():
+            continue
+        try:
+            event = json.loads(chunk.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def append_doctor_event(
+    wiki: str | Path,
+    event: dict[str, Any],
+    *,
+    idempotent: bool = False,
+) -> bool:
+    root = Path(wiki)
+    lock_path = root / ".locks" / "doctor-runs.lock"
+    log_path = root / ".doctor-runs.jsonl"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    encoded = json.dumps(event, sort_keys=True, separators=(",", ":"))
+    with lock_path.open("a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        if idempotent:
+            events = read_doctor_events(root)
+            if any(
+                previous.get("run_id") == event.get("run_id")
+                and previous.get("status") == event.get("status")
+                for previous in events
+            ):
+                return False
+        with log_path.open("a+b") as handle:
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() > 0:
+                handle.seek(-1, os.SEEK_END)
+                if handle.read(1) != b"\n":
+                    handle.seek(0, os.SEEK_END)
+                    handle.write(b"\n")
+            handle.seek(0, os.SEEK_END)
+            handle.write(encoded.encode("utf-8") + b"\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    return True
+
+
+def _doctor_completed(root: Path, run_id: str) -> bool:
+    return any(
+        event.get("run_id") == run_id and event.get("status") == "completed"
+        for event in read_doctor_events(root)
+    )
+
+
+def _doctor_profile_name(provider: str, effort: str) -> str:
+    raw = f"{provider}_{effort}".lower()
+    return re.sub(r"[^a-z0-9_-]+", "_", raw).strip("_")
+
+
+def _synthesize_doctor_profile(
+    config: dict[str, Any], rec: dict[str, str]
+) -> dict[str, Any]:
+    executable = rec["provider"]
+    for profile in config["ingest"]["profiles"].values():
+        if profile.get("provider") == rec["provider"]:
+            executable = profile["executable"]
+            break
+    return {
+        "provider": rec["provider"],
+        "executable": executable,
+        "model": rec["model"],
+        "reasoning_effort": rec["reasoning_effort"],
+        "max_processes": 1,
+        "usage_provider": rec["provider"],
+    }
+
+
+def _doctor_profile_chain(
+    config: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    ingest = config["ingest"]
+    doctor = config.get("doctor") or {}
+    chain: list[tuple[str, dict[str, Any]]] = []
+    default_name = doctor.get("default_profile")
+    if default_name and default_name in ingest["profiles"]:
+        chain.append((default_name, ingest["profiles"][default_name]))
+    else:
+        rec = RECOMMENDED_DOCTOR_DEFAULT
+        chain.append(
+            (
+                _doctor_profile_name(rec["provider"], rec["reasoning_effort"]),
+                _synthesize_doctor_profile(config, rec),
+            )
+        )
+    fallback_name = doctor.get("fallback_profile")
+    if fallback_name and fallback_name in ingest["profiles"]:
+        if not chain or chain[0][0] != fallback_name:
+            chain.append((fallback_name, ingest["profiles"][fallback_name]))
+    else:
+        rec = RECOMMENDED_DOCTOR_FALLBACK
+        name = _doctor_profile_name(rec["provider"], rec["reasoning_effort"])
+        if not chain or chain[0][0] != name:
+            chain.append((name, _synthesize_doctor_profile(config, rec)))
+    return chain
+
+
+def _select_doctor_profile(
+    config: dict[str, Any], unavailable: set[str] | None = None
+) -> tuple[str, dict[str, Any]] | tuple[None, None]:
+    unavailable = unavailable or set()
+    for name, profile in _doctor_profile_chain(config):
+        if name in unavailable:
+            continue
+        return name, profile
+    return None, None
+
+
+def enqueue_doctor(
+    root: Path, config: dict[str, Any], run_id: str | None = None
+) -> str:
+    ingest = config["ingest"]
+    if not run_id:
+        run_id = f"doc-{int(time.time() * 1_000_000)}-{os.getpid()}"
+    unavailable: set[str] = set()
+    if not _test_mode():
+        for name, profile in _doctor_profile_chain(config):
+            try:
+                resolve_executable(
+                    profile["executable"],
+                    forbidden_roots=(Path(config["trusted_workspace"]),),
+                )
+            except ProviderError:
+                unavailable.add(name)
+    selected = _select_doctor_profile(config, unavailable)
+    profile_name, profile = selected
+    if profile_name is None or profile is None:
+        print("skipped")
+        return "skipped"
+
+    scheduler = ensure_scheduler_runtime_config()["scheduler"]
+    global_lock_path, global_slot_root = _global_dispatch_paths()
+    lock_path, slot_root, _pending_root = _dispatch_paths(root)
+    global_lock = _try_dispatch_lock(global_lock_path)
+    if global_lock is None:
+        print("skipped")
+        return "skipped"
+
+    dispatch_lock: TextIO | None = None
+    spawn_error: OSError | None = None
+    outcome = "skipped"
+    try:
+        global_slot_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(global_slot_root, 0o700)
+        _reconcile_dead_global_leases(global_slot_root)
+        global_leases = _valid_global_leases(global_slot_root)
+        if (
+            len(global_leases) >= scheduler["max_total_processes"]
+            or _wiki_has_global_lease(global_leases, root)
+        ):
+            print("skipped")
+            return "skipped"
+
+        dispatch_lock = _try_dispatch_lock(lock_path)
+        if dispatch_lock is None:
+            print("skipped")
+            return "skipped"
+
+        slot_root.mkdir(parents=True, exist_ok=True)
+        _reconcile_dead_leases(root, slot_root, ingest["stale_after_seconds"])
+        leases = _valid_leases(slot_root)
+        if any(lease.get("job") == "doctor" for _path, lease in leases):
+            print("skipped")
+            return "skipped"
+        local_limit = min(ingest["max_processes"], scheduler["max_processes_per_wiki"])
+        slot = _free_slot(leases, local_limit)
+        global_slot = _free_global_slot(global_leases, scheduler["max_total_processes"])
+        if slot is None or global_slot is None:
+            print("skipped")
+            return "skipped"
+
+        lease_path = slot_root / f"{slot}.lock"
+        global_lease_path = global_slot_root / f"{global_slot}.lock"
+        global_lease = {
+            "run_id": run_id,
+            "global_slot": global_slot,
+            "wiki_root": str(root),
+            "per_wiki_run_id": run_id,
+            "per_wiki_lease": str(lease_path),
+            "capture": "doctor",
+            "job": "doctor",
+            "profile": profile_name,
+            "provider": profile["provider"],
+            "wrapper_pid": 0,
+            "provider_pid": None,
+            "created_at": _utc_now(),
+            "heartbeat_at": _utc_now(),
+        }
+        lease = {
+            "run_id": run_id,
+            "slot": slot,
+            "job": "doctor",
+            "global_slot": global_slot,
+            "global_lease": str(global_lease_path),
+            "capture": "doctor",
+            "profile": profile_name,
+            "provider": profile["provider"],
+            "attempt": 1,
+            "wrapper_pid": 0,
+            "provider_pid": None,
+            "started_at": _utc_now(),
+        }
+        try:
+            fd = os.open(
+                global_lease_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(global_lease, handle, sort_keys=True, separators=(",", ":"))
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        except FileExistsError:
+            print("skipped")
+            return "skipped"
+
+        try:
+            fd = os.open(lease_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(lease, handle, sort_keys=True, separators=(",", ":"))
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        except FileExistsError:
+            global_lease_path.unlink(missing_ok=True)
+            print("skipped")
+            return "skipped"
+
+        try:
+            worker = _spawn_worker(
+                root, lease_path, None, run_id, profile_name, job="doctor"
+            )
+        except OSError as exc:
+            lease_path.unlink(missing_ok=True)
+            global_lease_path.unlink(missing_ok=True)
+            spawn_error = exc
+        else:
+            lease["wrapper_pid"] = worker.pid
+            lease["heartbeat_at"] = _utc_now()
+            _write_json_atomic(lease_path, lease)
+            global_lease["wrapper_pid"] = worker.pid
+            global_lease["heartbeat_at"] = lease["heartbeat_at"]
+            _write_global_lease(global_lease_path, global_lease)
+            append_doctor_event(
+                root,
+                {
+                    "run_id": run_id,
+                    "status": "started",
+                    "profile": profile_name,
+                    "provider": profile["provider"],
+                    "at": _utc_now(),
+                },
+                idempotent=True,
+            )
+            outcome = "launched"
+    finally:
+        if dispatch_lock is not None:
+            fcntl.flock(dispatch_lock.fileno(), fcntl.LOCK_UN)
+            dispatch_lock.close()
+        fcntl.flock(global_lock.fileno(), fcntl.LOCK_UN)
+        global_lock.close()
+
+    if spawn_error is not None:
+        raise DispatchError(f"wiki dispatch: doctor worker spawn failed: {spawn_error}")
+    print(outcome)
+    return outcome
+
+
+def run_doctor_worker(
+    root: Path,
+    lease_path: Path,
+    run_id: str,
+    profile_name: str,
+) -> int:
+    os.environ["WIKI_JOB"] = "doctor"
+    child: subprocess.Popen[bytes] | None = None
+    dummy = root / ".wiki-pending" / f".doctor-{run_id}"
+
+    def interrupted(_signum: int, _frame: Any) -> None:
+        raise WorkerInterrupted()
+
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
+
+    config = validate_runtime_config(root)
+    ingest = config["ingest"]
+    profile = ingest["profiles"].get(profile_name)
+    if profile is None:
+        for name, candidate in _doctor_profile_chain(config):
+            if name == profile_name:
+                profile = candidate
+                break
+    if profile is None:
+        raise DispatchError(f"wiki dispatch worker: unknown doctor profile {profile_name!r}")
+    _await_parent_lease(lease_path, run_id)
+
+    try:
+        invocation: ProviderInvocation | None = None
+        if _test_mode():
+            command, _test_provider_mode = _test_provider_command(root)
+            provider_env = _provider_environment(root, dummy, run_id)
+            provider_env["WIKI_JOB"] = "doctor"
+            log_path = root / ".ingest.log"
+            stdout_handle = log_path.open("ab", buffering=0)
+            stderr_handle = stdout_handle
+            stdin_bytes = None
+        else:
+            runtime_profile = dict(profile)
+            runtime_profile["executable"] = resolve_executable(
+                profile["executable"],
+                forbidden_roots=(Path(config["trusted_workspace"]),),
+            )
+            schema = root / "schema.md"
+            invocation = build_provider_invocation(
+                runtime_profile,
+                root,
+                schema if schema.is_file() else dummy,
+                run_id,
+                Path(__file__).resolve().parent.parent,
+            )
+            command = invocation.argv
+            provider_env = os.environ.copy()
+            provider_env.update(invocation.environment)
+            provider_env["WIKI_JOB"] = "doctor"
+            stdin_bytes = invocation.stdin_bytes
+            stdout_handle = invocation.stdout_path.open("wb", buffering=0)
+            stderr_handle = invocation.stderr_path.open("wb", buffering=0)
+
+        try:
+            try:
+                child = subprocess.Popen(
+                    command,
+                    cwd=root,
+                    env=provider_env,
+                    stdin=subprocess.PIPE if stdin_bytes is not None else subprocess.DEVNULL,
+                    stdout=stdout_handle,
+                    stderr=stderr_handle,
+                    close_fds=True,
+                    start_new_session=True,
+                )
+            except OSError as exc:
+                raise DispatchError(f"wiki dispatch worker: provider spawn failed: {exc}") from exc
+            _update_worker_lease(
+                lease_path,
+                run_id,
+                provider_pid=child.pid,
+                heartbeat_at=_utc_now(),
+            )
+            if stdin_bytes is not None:
+                if child.stdin is None:
+                    raise DispatchError("wiki dispatch worker: provider stdin pipe missing")
+                try:
+                    child.stdin.write(stdin_bytes)
+                    child.stdin.flush()
+                except BrokenPipeError:
+                    pass
+                finally:
+                    child.stdin.close()
+
+            heartbeat = float(ingest["heartbeat_seconds"])
+            if _test_mode() and "WIKI_DISPATCH_TEST_HEARTBEAT_SECONDS" in os.environ:
+                heartbeat = float(os.environ["WIKI_DISPATCH_TEST_HEARTBEAT_SECONDS"])
+            while True:
+                try:
+                    exit_code = child.wait(timeout=heartbeat)
+                    break
+                except subprocess.TimeoutExpired:
+                    _update_worker_lease(
+                        lease_path,
+                        run_id,
+                        provider_pid=child.pid,
+                        heartbeat_at=_utc_now(),
+                    )
+        finally:
+            stdout_handle.close()
+            if stderr_handle is not stdout_handle:
+                stderr_handle.close()
+
+        if exit_code == 0 and _doctor_completed(root, run_id):
+            _worker_cleanup(root, lease_path, dummy, run_id, requeue=False)
+            if invocation is not None and os.environ.get(
+                "WIKI_DISPATCH_ACCEPTANCE_RETAIN_ARTIFACTS"
+            ) != "1":
+                shutil.rmtree(invocation.run_dir, ignore_errors=True)
+            return 0
+
+        if not _doctor_completed(root, run_id):
+            append_doctor_event(
+                root,
+                {
+                    "run_id": run_id,
+                    "status": "failed",
+                    "exit_code": exit_code,
+                    "at": _utc_now(),
+                },
+                idempotent=True,
+            )
+        _worker_cleanup(root, lease_path, dummy, run_id, requeue=False)
+        return 1
+    except WorkerInterrupted:
+        _terminate_provider_group(child)
+        _worker_cleanup(root, lease_path, dummy, run_id, requeue=False)
+        return 0
+    except (DispatchError, ProviderError, OSError):
+        _terminate_provider_group(child)
+        if not _doctor_completed(root, run_id):
+            append_doctor_event(
+                root,
+                {
+                    "run_id": run_id,
+                    "status": "failed",
+                    "at": _utc_now(),
+                },
+                idempotent=True,
+            )
+        _worker_cleanup(root, lease_path, dummy, run_id, requeue=False)
+        raise
+
+
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="wiki_dispatch.py")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1352,39 +1805,68 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     worker = subparsers.add_parser("worker")
     worker.add_argument("--wiki", required=True)
     worker.add_argument("--lease", required=True)
-    worker.add_argument("--capture", required=True)
+    worker.add_argument("--capture")
     worker.add_argument("--run-id", required=True)
     worker.add_argument("--profile", required=True)
+    worker.add_argument("--job", default="ingest", choices=("ingest", "doctor"))
+
+    doctor = subparsers.add_parser("doctor")
+    doctor.add_argument("--wiki", required=True)
+    doctor.add_argument("--run-id", required=True)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv or sys.argv[1:])
+    root: Path | None = None
+    lease_path: Path | None = None
+    processing: Path | None = None
     try:
         if args.command == "tick":
             config = validate_runtime_config(args.wiki)
             root = Path(config["wiki_root"])
             return dispatch_tick(root, config, args.source, scan=args.scan)
+        if args.command == "doctor":
+            config = validate_runtime_config(args.wiki)
+            root = Path(config["wiki_root"])
+            enqueue_doctor(root, config, run_id=args.run_id)
+            return 0
 
         root = Path(args.wiki).expanduser().resolve()
         lease_path = Path(args.lease).expanduser().resolve()
-        processing = Path(args.capture).expanduser().resolve()
         if lease_path.parent != root / ".locks" / "ingest-slots":
             raise DispatchError("wiki dispatch worker: lease is outside the wiki slot directory")
+        if args.job == "doctor":
+            return run_doctor_worker(root, lease_path, args.run_id, args.profile)
+        if not args.capture:
+            raise DispatchError("wiki dispatch worker: --capture is required for ingest")
+        processing = Path(args.capture).expanduser().resolve()
         if processing.parent != root / ".wiki-pending":
             raise DispatchError("wiki dispatch worker: capture is outside the pending directory")
         return run_worker(root, lease_path, processing, args.run_id, args.profile)
     except WorkerInterrupted:
-        if args.command == "worker":
+        if args.command == "worker" and root is not None and lease_path is not None:
             try:
-                _worker_cleanup(root, lease_path, processing, args.run_id, requeue=True)
+                _worker_cleanup(
+                    root,
+                    lease_path,
+                    processing or root / ".wiki-pending" / f".doctor-{args.run_id}",
+                    args.run_id,
+                    requeue=args.job != "doctor",
+                )
             except Exception:
                 pass
         return 0
     except (ConfigError, DispatchError, OSError) as exc:
-        if args.command == "worker":
+        if args.command == "worker" and root is not None and lease_path is not None:
             try:
-                _worker_cleanup(root, lease_path, processing, args.run_id, requeue=True)
+                _worker_cleanup(
+                    root,
+                    lease_path,
+                    processing or root / ".wiki-pending" / f".doctor-{args.run_id}",
+                    args.run_id,
+                    requeue=args.job != "doctor",
+                )
             except Exception:
                 pass
         print(str(exc), file=sys.stderr)

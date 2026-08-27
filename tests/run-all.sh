@@ -28,6 +28,7 @@ group_for_test() {
     unit/test-capture-skill.sh|\
     unit/test-codex-plugin-packaging.sh|\
     unit/test-deep-orientation-cold-start.sh|\
+    unit/test-doctor-skill.sh|\
     unit/test-ingest-runs-record.sh|\
     unit/test-ingest-skill-provider-neutral.sh|\
     unit/test-ingest-skill.sh|\
@@ -64,6 +65,7 @@ group_for_test() {
     unit/test-dispatch-scan-routing.sh|\
     unit/test-dispatcher-slots.sh|\
     unit/test-ingest-run-events.sh|\
+    unit/test-wiki-doctor-cli.sh|\
     unit/test-no-direct-spawn-path.sh|\
     unit/test-session-start-claude-code-hookeventname.sh|\
     unit/test-worker-heartbeat.sh|\

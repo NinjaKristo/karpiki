@@ -38,6 +38,16 @@ SUPPORTED_ROUTING_MODES = {"project", "main", "both"}
 LEGACY_OPERATIONAL_KEYS = {"platform", "settings", "main", "fork_to_main"}
 RECOMMENDED_GROK_MODEL = "grok-4.6"
 RECOMMENDED_GROK_EFFORT = "medium"
+RECOMMENDED_DOCTOR_DEFAULT = {
+    "provider": "grok",
+    "model": RECOMMENDED_GROK_MODEL,
+    "reasoning_effort": "xhigh",
+}
+RECOMMENDED_DOCTOR_FALLBACK = {
+    "provider": "codex",
+    "model": "gpt-5.6-codex",
+    "reasoning_effort": "max",
+}
 
 INGEST_DEFAULTS: dict[str, Any] = {
     "schedule_interval_seconds": 60,
@@ -925,6 +935,8 @@ def validate_runtime_config(wiki: str | Path) -> dict[str, Any]:
         default=INGEST_DEFAULTS["rate_limit_retry_seconds"],
     )
 
+    doctor_normalized = _normalize_doctor(local.get("doctor"), normalized_profiles)
+
     normalized_trust = local.get("trust", {})
     return {
         "wiki_root": str(root),
@@ -950,6 +962,7 @@ def validate_runtime_config(wiki: str | Path) -> dict[str, Any]:
             "rate_limit_retry_seconds": rate_limit_retry_seconds,
             "profiles": normalized_profiles,
         },
+        "doctor": doctor_normalized,
         "routing": {
             "fork_to_main": _bool_value(
                 routing, "fork_to_main", "routing.fork_to_main", default=False
@@ -977,6 +990,44 @@ def validate_pointer_target(wiki: str | Path, workspace: str | Path) -> dict[str
     return config
 
 
+def _normalize_doctor(
+    doctor: Any, profiles: dict[str, dict[str, Any]]
+) -> dict[str, str | None]:
+    if doctor is None:
+        return {"default_profile": None, "fallback_profile": None}
+    if not isinstance(doctor, dict):
+        raise _invalid("doctor", "must be a TOML table")
+    default_profile = doctor.get("default_profile")
+    fallback_profile = doctor.get("fallback_profile")
+    if default_profile is None and fallback_profile is None:
+        return {"default_profile": None, "fallback_profile": None}
+    if default_profile is not None:
+        if not isinstance(default_profile, str) or not default_profile.strip():
+            raise _invalid("doctor.default_profile", "must be a non-empty string")
+        if default_profile not in profiles:
+            raise _invalid(
+                "doctor.default_profile",
+                f"references undeclared profile {default_profile!r}",
+            )
+    if fallback_profile is not None:
+        if not isinstance(fallback_profile, str) or not fallback_profile.strip():
+            raise _invalid("doctor.fallback_profile", "must be a non-empty string")
+        if fallback_profile not in profiles:
+            raise _invalid(
+                "doctor.fallback_profile",
+                f"references undeclared profile {fallback_profile!r}",
+            )
+        if fallback_profile == default_profile:
+            raise _invalid(
+                "doctor.fallback_profile",
+                "must differ from doctor.default_profile",
+            )
+    return {
+        "default_profile": default_profile,
+        "fallback_profile": fallback_profile,
+    }
+
+
 def _toml_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
@@ -987,6 +1038,85 @@ def _profile_name(provider: str, effort: str, qualifier: str | None = None) -> s
         parts.append(qualifier)
     raw = "_".join(parts).lower()
     return re.sub(r"[^a-z0-9_-]+", "_", raw).strip("_")
+
+
+def _executable_for_provider(
+    profiles: dict[str, dict[str, Any]], provider: str
+) -> str:
+    for profile in profiles.values():
+        if profile.get("provider") == provider:
+            executable = profile.get("executable")
+            if isinstance(executable, str) and executable.strip():
+                return executable
+    return provider
+
+
+def _add_or_reuse_profile(
+    profiles: dict[str, dict[str, Any]],
+    *,
+    provider: str,
+    model: str,
+    effort: str,
+    executable: str,
+    max_processes: int,
+) -> str:
+    candidates = [
+        _profile_name(provider, effort),
+        _profile_name(provider, effort, model),
+        f"{_profile_name(provider, effort, model)}_doctor",
+    ]
+    for name in candidates:
+        existing = profiles.get(name)
+        if existing is None:
+            profiles[name] = {
+                "provider": provider,
+                "executable": executable,
+                "model": model,
+                "reasoning_effort": effort,
+                "max_processes": max_processes,
+                "usage_provider": provider,
+            }
+            return name
+        if (
+            existing.get("provider") == provider
+            and existing.get("model") == model
+            and existing.get("reasoning_effort") == effort
+        ):
+            return name
+    raise ConfigError("unable to allocate a unique doctor profile name")
+
+
+def _ensure_doctor_profiles(
+    profiles: dict[str, dict[str, Any]], max_processes: int
+) -> dict[str, str]:
+    grok_executable = _executable_for_provider(profiles, "grok")
+    codex_executable = _executable_for_provider(profiles, "codex")
+    default_name = _add_or_reuse_profile(
+        profiles,
+        provider=RECOMMENDED_DOCTOR_DEFAULT["provider"],
+        model=RECOMMENDED_DOCTOR_DEFAULT["model"],
+        effort=RECOMMENDED_DOCTOR_DEFAULT["reasoning_effort"],
+        executable=grok_executable,
+        max_processes=max_processes,
+    )
+    fallback_name = _add_or_reuse_profile(
+        profiles,
+        provider=RECOMMENDED_DOCTOR_FALLBACK["provider"],
+        model=RECOMMENDED_DOCTOR_FALLBACK["model"],
+        effort=RECOMMENDED_DOCTOR_FALLBACK["reasoning_effort"],
+        executable=codex_executable,
+        max_processes=max_processes,
+    )
+    if fallback_name == default_name:
+        fallback_name = _add_or_reuse_profile(
+            profiles,
+            provider=RECOMMENDED_DOCTOR_FALLBACK["provider"],
+            model=RECOMMENDED_DOCTOR_FALLBACK["model"],
+            effort=RECOMMENDED_DOCTOR_FALLBACK["reasoning_effort"],
+            executable=codex_executable,
+            max_processes=max_processes,
+        )
+    return {"default_profile": default_name, "fallback_profile": fallback_name}
 
 
 def _render_structural_config(structural: dict[str, Any]) -> str:
@@ -1046,6 +1176,20 @@ def _render_runtime_config(
                 f"usage_provider = {_toml_string(profile['usage_provider'])}",
             ]
         )
+
+    doctor = config.get("doctor") or {}
+    if doctor.get("default_profile"):
+        lines.extend(
+            [
+                "",
+                "[doctor]",
+                f"default_profile = {_toml_string(doctor['default_profile'])}",
+            ]
+        )
+        if doctor.get("fallback_profile"):
+            lines.append(
+                f"fallback_profile = {_toml_string(doctor['fallback_profile'])}"
+            )
 
     lines.extend(
         [
@@ -1335,6 +1479,8 @@ def _build_runtime_for_write(
             "usage_provider": fallback["provider"],
         }
 
+    doctor_profiles = _ensure_doctor_profiles(profiles, args.max_processes)
+
     legacy_settings = structural.get("settings", {})
     legacy_auto_commit = (
         legacy_settings.get("auto_commit", True)
@@ -1361,6 +1507,7 @@ def _build_runtime_for_write(
             "rate_limit_retry_seconds": args.rate_limit_retry_seconds,
             "profiles": profiles,
         },
+        "doctor": doctor_profiles,
         # Retained only as inert compatibility data in the ingest runtime.
         # Workspace routing is selected exclusively through route-set.
         "routing": {"fork_to_main": legacy_fork},

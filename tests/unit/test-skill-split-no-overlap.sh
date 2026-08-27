@@ -8,14 +8,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CAPTURE="${REPO_ROOT}/skills/karpathy-wiki-capture/SKILL.md"
 INGEST="${REPO_ROOT}/skills/karpathy-wiki-ingest/SKILL.md"
+DOCTOR="${REPO_ROOT}/skills/karpathy-wiki-doctor/SKILL.md"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 [[ -f "${CAPTURE}" ]] || fail "capture skill missing"
 [[ -f "${INGEST}" ]] || fail "ingest skill missing"
+[[ -f "${DOCTOR}" ]] || fail "doctor skill missing"
 
 # Use python to find any contiguous 80-word substring that appears in both files.
-python3 - "${CAPTURE}" "${INGEST}" <<'PYEOF'
+python3 - "${CAPTURE}" "${INGEST}" "${DOCTOR}" <<'PYEOF'
 import sys, re
 
 def words(path):
@@ -26,21 +28,27 @@ def words(path):
     return re.findall(r'\S+', text)
 
 WIN = 80
-a = words(sys.argv[1])
-b_text = ' '.join(words(sys.argv[2]))
 
-# For every 80-word window in a, check if it appears in b
-overlap = None
-for i in range(len(a) - WIN + 1):
-    window = ' '.join(a[i:i + WIN])
-    if window in b_text:
-        overlap = window
-        break
+def overlap(path_a, path_b):
+    a = words(path_a)
+    b_text = ' '.join(words(path_b))
+    for i in range(len(a) - WIN + 1):
+        window = ' '.join(a[i:i + WIN])
+        if window in b_text:
+            return window
+    return None
 
-if overlap:
-    print(f"FAIL: 80-word overlap between capture and ingest skills:")
-    print(f"  ...{overlap[:200]}...")
-    sys.exit(1)
-else:
-    print("PASS: no >80-word substring overlap")
+pairs = (
+    ("capture", sys.argv[1], "ingest", sys.argv[2]),
+    ("capture", sys.argv[1], "doctor", sys.argv[3]),
+    ("ingest", sys.argv[2], "doctor", sys.argv[3]),
+)
+for label_a, path_a, label_b, path_b in pairs:
+    found = overlap(path_a, path_b)
+    if found:
+        print(f"FAIL: 80-word overlap between {label_a} and {label_b} skills:")
+        print(f"  ...{found[:200]}...")
+        sys.exit(1)
+
+print("PASS: no >80-word substring overlap")
 PYEOF

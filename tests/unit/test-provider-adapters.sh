@@ -238,6 +238,28 @@ for invocation in (claude, grok, codex):
     assert invocation.run_dir.is_dir()
 PY
 
+DOCTOR_CAPTURE="${WIKI}/.wiki-pending/doctor.md.processing"
+printf 'schema\n' > "${WIKI}/schema.md"
+printf 'doctor-capture\n' > "${DOCTOR_CAPTURE}"
+python3 - "${WIKI}" "${PLUGIN}" "${DOCTOR_CAPTURE}" <<'PY' || fail "doctor prompt must load the doctor skill"
+import os
+import pathlib
+import sys
+from wiki_providers import build_provider_invocation
+
+wiki, plugin, capture = (pathlib.Path(value).resolve() for value in sys.argv[1:])
+os.environ["WIKI_JOB"] = "doctor"
+invocation = build_provider_invocation(
+    {"provider": "grok", "executable": "/Applications/Grok Build/grok", "model": "grok-4.6", "reasoning_effort": "xhigh"},
+    wiki, capture, "doc-test", plugin,
+)
+assert "karpathy-wiki-doctor" in invocation.prompt
+assert "wiki-complete-doctor.sh" in invocation.prompt
+assert "karpathy-wiki-ingest" not in invocation.prompt
+assert invocation.environment.get("WIKI_JOB") == "doctor"
+PY
+unset WIKI_JOB
+
 python3 - <<'PY' || fail "unknown provider should fail"
 from pathlib import Path
 from wiki_providers import ProviderError, build_provider_invocation

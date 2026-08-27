@@ -104,6 +104,19 @@ def _safe_run_id(run_id: str) -> str:
 
 
 def _prompt(root: Path, capture: Path, plugin_root: Path) -> str:
+    if os.environ.get("WIKI_JOB") == "doctor":
+        skill = plugin_root / "skills" / "karpathy-wiki-doctor" / "SKILL.md"
+        helper = plugin_root / "scripts" / "wiki-complete-doctor.sh"
+        return (
+            "You are the selected detached wiki doctor for one census.\n"
+            f"Wiki root: {root}\n"
+            f"Plugin root: {plugin_root}\n"
+            f"Load and follow this doctor skill exactly: {skill}\n"
+            "Perform the census yourself. Do not launch or delegate to another model "
+            "or agentic CLI, and do not rewrite page bodies.\n"
+            f"After the census succeeds, close it only with: bash {shlex.quote(str(helper))}\n"
+            "Exit non-zero if deterministic completion fails.\n"
+        )
     skill = plugin_root / "skills" / "karpathy-wiki-ingest" / "SKILL.md"
     helper = plugin_root / "scripts" / "wiki-complete-ingest.sh"
     return (
@@ -276,12 +289,16 @@ def _safe_prompt_json_limit() -> int:
 def _base_environment(
     root: Path, capture: Path, run_id: str, plugin_root: Path
 ) -> dict[str, str]:
-    return {
+    environment = {
         "WIKI_ROOT": str(root),
         "WIKI_CAPTURE": str(capture),
         "WIKI_RUN_ID": run_id,
         "WIKI_PLUGIN_ROOT": str(plugin_root),
     }
+    job = os.environ.get("WIKI_JOB")
+    if job:
+        environment["WIKI_JOB"] = job
+    return environment
 
 
 def build_provider_invocation(

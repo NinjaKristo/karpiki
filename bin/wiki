@@ -3,7 +3,7 @@
 #
 # Subcommands:
 #   wiki status         — health report
-#   wiki doctor         — deep lint (post-MVP placeholder)
+#   wiki doctor         — detached census (schema/tags/frontmatter/related)
 #
 # All other interactions are via natural language to the agent.
 
@@ -46,8 +46,7 @@ case "${sub}" in
     bash "${REPO_ROOT}/scripts/wiki-status.sh" "$(wiki_root)" "${routing_cwd}"
     ;;
   doctor)
-    echo "wiki doctor: not implemented in MVP. For now, ask the agent to run a deep lint of the wiki."
-    exit 1
+    bash "${REPO_ROOT}/scripts/wiki-doctor.sh" "$@"
     ;;
   capture)
     # bin/wiki capture — single entry point for chat-driven captures.
@@ -423,7 +422,7 @@ subcommands:
                    wiki tick [<wiki-path>] --source session_start|scheduled|manual|capture|worker_completion [--scan]
   init-main      Bootstrap ~/.wiki-pointer (interactive)
   status         Read-only health report
-  doctor         Deep lint + fix (post-MVP)
+  doctor         Detached census; patches schema/tags/frontmatter/related
   help           This message
 EOF
     ;;
