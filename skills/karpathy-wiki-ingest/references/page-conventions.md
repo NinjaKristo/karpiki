@@ -98,9 +98,10 @@ sources about the same object stay on one page.
 
 ## Schema overlay
 
-After reading `<wiki>/schema.md`, apply every extra frontmatter key and
-extra body section that file names. If it names none, write only these
-plugin defaults.
+Headings in `<wiki>/schema.md` follow `schema-conventions.md`. After
+reading `<wiki>/schema.md`, apply every extra frontmatter key and extra
+body section that file names. If it names none, write only these plugin
+defaults.
 
 ## Category directory
 

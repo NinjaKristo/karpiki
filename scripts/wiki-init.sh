@@ -111,6 +111,9 @@ ${role}
 - \`queries/\` — filed Q&A worth keeping
 - \`ideas/\` — forward-looking candidate work; requires \`status:\` and \`priority:\` frontmatter
 
+## Objects
+(none yet)
+
 ## Tag Taxonomy (bounded)
 Tags are evolved by the ingester; propose changes via schema edits, not ad-hoc.
 
@@ -118,6 +121,7 @@ Tags are evolved by the ingester; propose changes via schema edits, not ad-hoc.
 - Split a page when it holds two distinct knowledge objects, or it is still too long after dropping repetition. Two sources about the same object augment one page.
 - Archive a raw source: referenced by 5+ wiki pages
 - Restructure top-level category: 500+ pages within it
+- Doctor cadence: 10, 20, 50, 100
 
 ## Page contract
 Plugin defaults live in the ingest page-conventions. This file may name extra frontmatter keys and extra body sections. If it names none, write only the plugin defaults.

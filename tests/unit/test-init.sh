@@ -143,6 +143,30 @@ test_init_schema_uses_object_split_and_page_contract() {
   teardown
 }
 
+test_init_schema_seeds_objects_and_doctor_cadence() {
+  setup
+  bash "${INIT}" main "${TESTDIR}/wiki" >/dev/null
+  grep -q '^## Objects' "${TESTDIR}/wiki/schema.md" \
+    || { echo "FAIL: seeded schema missing Objects heading"; teardown; exit 1; }
+  grep -q '(none yet)' "${TESTDIR}/wiki/schema.md" \
+    || { echo "FAIL: seeded Objects list is not empty"; teardown; exit 1; }
+  grep -q 'Doctor cadence: 10, 20, 50, 100' "${TESTDIR}/wiki/schema.md" \
+    || { echo "FAIL: seeded schema missing Doctor cadence default"; teardown; exit 1; }
+  CONV="${REPO_ROOT}/skills/karpathy-wiki-ingest/references/schema-conventions.md"
+  [[ -f "${CONV}" ]] || { echo "FAIL: schema-conventions reference missing"; teardown; exit 1; }
+  grep -q '^## Objects' "${CONV}" \
+    || { echo "FAIL: schema-conventions missing Objects heading"; teardown; exit 1; }
+  grep -q 'Doctor cadence: 10, 20, 50, 100' "${CONV}" \
+    || { echo "FAIL: schema-conventions missing Doctor cadence default"; teardown; exit 1; }
+  echo "CUSTOM SCHEMA" > "${TESTDIR}/wiki/schema.md"
+  bash "${INIT}" main "${TESTDIR}/wiki" >/dev/null
+  grep -q "CUSTOM SCHEMA" "${TESTDIR}/wiki/schema.md" \
+    || { echo "FAIL: re-init clobbered existing schema.md"; teardown; exit 1; }
+  echo "PASS: test_init_schema_seeds_objects_and_doctor_cadence"
+  teardown
+}
+
 test_init_seed_list_creates_ideas_not_sources
 test_init_schema_uses_object_split_and_page_contract
+test_init_schema_seeds_objects_and_doctor_cadence
 echo "ALL PASS"
