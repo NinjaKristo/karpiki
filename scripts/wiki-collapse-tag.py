@@ -24,7 +24,11 @@ SECTION_RE = re.compile(
     r"(^## [^\n]+\n)(.*?)(?=^## |\Z)",
     re.MULTILINE | re.DOTALL,
 )
-INLINE_TAGS_RE = re.compile(r"^tags:\s*\[[^\]]*\]\s*$", re.MULTILINE)
+INLINE_TAGS_RE = re.compile(r"^tags:\s*\[[^\]]*\][^\n]*\n?", re.MULTILINE)
+BLOCK_TAGS_RE = re.compile(
+    r"^tags:\s*\n(?:[ \t]*-[^\n]*\n)+",
+    re.MULTILINE,
+)
 
 
 def _pages(wiki: Path) -> list[Path]:
@@ -123,9 +127,11 @@ def _rewrite_page_tags(path: Path, keep: str, drop: str) -> bool:
     new_tags = _collapsed_tags(tags, keep, drop)
     if new_tags == tags:
         return False
-    rendered = "tags: [" + ", ".join(new_tags) + "]"
+    rendered = "tags: [" + ", ".join(new_tags) + "]\n"
     if INLINE_TAGS_RE.search(fm_block):
         new_fm = INLINE_TAGS_RE.sub(rendered, fm_block, count=1)
+    elif BLOCK_TAGS_RE.search(fm_block):
+        new_fm = BLOCK_TAGS_RE.sub(rendered, fm_block, count=1)
     else:
         new_fm = fm_block.rstrip() + "\n" + rendered
     path.write_text(opener + new_fm + "\n" + after)

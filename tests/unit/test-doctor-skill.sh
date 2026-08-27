@@ -23,6 +23,7 @@ grep -q 'wiki-collapse-tag.py' "${SKILL}" || fail "skill must collapse tags via 
 grep -q 'same-idea' "${SKILL}" || fail "skill must use same-idea collapse"
 grep -q 'not the same idea' "${SKILL}" \
   || fail "skill must skip false synonym pairs"
+grep -q 'tag-drift' "${SKILL}" || fail "skill must consume tag-drift issues"
 grep -q 'Do not write' "${SKILL}" || fail "skill must forbid synonym-pair bullets"
 grep -q 'synonym pairs' "${SKILL}" || fail "skill must name synonym pairs as forbidden"
 grep -qi 'frontmatter' "${SKILL}" || fail "skill missing frontmatter edits"

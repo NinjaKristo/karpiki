@@ -27,11 +27,13 @@ Exit non-zero if that helper fails.
 2. Read `.ingest-issues.jsonl` and `.doctor-runs.jsonl` if they exist.
 3. Run page validation and tag lint (`wiki-validate-page.py`,
    `wiki-lint-tags.py`).
-4. Collapse same-idea tag pairs. Lint is a detector; skip pairs that are
-   not the same idea. For each same-idea pair run
+4. Collapse same-idea tag pairs. Lint is a detector; also use `tag-drift`
+   lines in `.ingest-issues.jsonl`. Skip pairs that are not the same idea.
+   For each same-idea pair run
    `wiki-collapse-tag.py --wiki-root "${WIKI_ROOT}" --same-idea <a> <b>`.
    One spelling remains on pages, indexes, and Tag Taxonomy. Do not write
-   `==` synonym pairs.
+   `==` synonym pairs. Do not treat historical `==` schema lines as the
+   collapse plan.
 5. Patch schema.md via `wiki-schema-patch.py` (objects, tags, categories,
    extra Page contract keys).
 6. You may fix frontmatter, tags, and related lists. Leave page synthesis

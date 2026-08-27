@@ -138,7 +138,48 @@ test_same_idea_dedupes_both_spellings_on_one_page() {
   rm -rf "${dir}"
 }
 
+test_block_list_tags_collapse() {
+  local dir
+  dir="$(mktemp -d)"
+  bash "${INIT}" main "${dir}/wiki" >/dev/null
+  mkdir -p "${dir}/wiki/concepts"
+  cat > "${dir}/wiki/concepts/a.md" <<'EOF'
+---
+title: "Block tags"
+type: concepts
+tags:
+  - checkout
+  - checkouts
+  - payments
+sources: []
+summary: "block"
+created: "2026-04-26T12:00:00Z"
+updated: "2026-04-26T12:00:00Z"
+quality:
+  accuracy: 4
+  completeness: 4
+  signal: 4
+  interlinking: 4
+  overall: 4.00
+  rated_at: "2026-04-26T12:00:00Z"
+  rated_by: ingester
+---
+BLOCK-BODY
+EOF
+  python3 "${COLLAPSE}" --wiki-root "${dir}/wiki" --keep checkout --drop checkouts
+  grep -q 'tags: \[checkout, payments\]' "${dir}/wiki/concepts/a.md" \
+    || { echo "FAIL: block tags not collapsed"; cat "${dir}/wiki/concepts/a.md"; rm -rf "${dir}"; exit 1; }
+  if grep -q 'checkouts' "${dir}/wiki/concepts/a.md"; then
+    echo "FAIL: dropped spelling remains in block tags"; rm -rf "${dir}"; exit 1
+  fi
+  grep -q 'BLOCK-BODY' "${dir}/wiki/concepts/a.md" \
+    || { echo "FAIL: block-tag body rewritten"; rm -rf "${dir}"; exit 1; }
+  echo "PASS: test_block_list_tags_collapse"
+  rm -rf "${dir}"
+}
+
 test_keep_drop_rewrites_pages_taxonomy_and_index
 test_choose_ranking
 test_same_idea_dedupes_both_spellings_on_one_page
+test_block_list_tags_collapse
 echo "ALL PASS"
