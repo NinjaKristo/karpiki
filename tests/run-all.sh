@@ -98,6 +98,7 @@ group_for_test() {
     unit/test-backfill-quality.sh|\
     unit/test-build-index.sh|\
     unit/test-discover.sh|\
+    unit/test-doctor-due.sh|\
     unit/test-fix-frontmatter.sh|\
     unit/test-index-threshold-fires.sh|\
     unit/test-lint-tags.sh|\
