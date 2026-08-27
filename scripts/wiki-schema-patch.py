@@ -16,6 +16,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from wiki_yaml import RESERVED, extract_frontmatter, parse_yaml
+
 _DISCOVER_PATH = Path(__file__).parent / "wiki-discover.py"
 _spec = importlib.util.spec_from_file_location("wiki_discover", _DISCOVER_PATH)
 _discover_mod = importlib.util.module_from_spec(_spec)
@@ -26,10 +29,57 @@ discover = _discover_mod.discover
 OBJECT_HIT_THRESHOLD = 6
 ENTRY_RE = re.compile(r"^- \[([^\]]+)\]\([^)]+\)(?: — (.*))?$")
 TAG_SUFFIX_RE = re.compile(r"\[([^\]]+)\]\s*$")
-TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
+WORD_HIT_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9]*)(?![A-Za-z0-9])")
 SECTION_RE = re.compile(
     r"(^## [^\n]+\n)(.*?)(?=^## |\Z)",
     re.MULTILINE | re.DOTALL,
+)
+STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "or",
+        "the",
+        "this",
+        "that",
+        "to",
+        "with",
+        "summary",
+        "page",
+        "pages",
+    }
+)
+PLUGIN_FRONTMATTER_KEYS = frozenset(
+    {
+        "title",
+        "type",
+        "tags",
+        "summary",
+        "sources",
+        "related",
+        "created",
+        "updated",
+        "quality",
+        "contradictions",
+        "aliases",
+        "status",
+        "priority",
+    }
 )
 
 
@@ -63,13 +113,6 @@ def _index_entries(wiki: Path) -> list[tuple[str, str]]:
     return entries
 
 
-def _object_token(title: str) -> str | None:
-    match = TOKEN_RE.search(title)
-    if not match:
-        return None
-    return match.group(0).lower()
-
-
 def _tags_from_rest(rest: str) -> list[str]:
     match = TAG_SUFFIX_RE.search(rest)
     if not match:
@@ -77,8 +120,23 @@ def _tags_from_rest(rest: str) -> list[str]:
     return [part.strip() for part in match.group(1).split(",") if part.strip()]
 
 
-def _blob(title: str, rest: str) -> str:
-    return f"{title} {rest}".lower()
+def _one_liner(rest: str) -> str:
+    return TAG_SUFFIX_RE.sub("", rest).strip()
+
+
+def _tokens_in_line(title: str, rest: str) -> set[str]:
+    tokens: set[str] = set()
+    blob = f"{title} {_one_liner(rest)}".lower()
+    for raw in WORD_HIT_RE.findall(blob):
+        token = raw.lower()
+        if len(token) < 3 or token in STOPWORDS:
+            continue
+        tokens.add(token)
+    for tag in _tags_from_rest(rest):
+        token = tag.lower().strip()
+        if token:
+            tokens.add(token)
+    return tokens
 
 
 def _section(text: str, heading: str) -> str | None:
@@ -126,6 +184,53 @@ def _categories_body(names: list[str]) -> str:
     return "".join(f"- `{name}/`\n" for name in names)
 
 
+def _contract_body(existing: str, extra_keys: list[str]) -> str:
+    lines = [line.rstrip() for line in existing.splitlines()]
+    present = {line[2:].strip() for line in lines if line.startswith("- ")}
+    out = [line for line in lines if line.strip()]
+    if not out:
+        out = [
+            "Plugin defaults live in the ingest page-conventions. This file may name extra frontmatter keys and extra body sections. If it names none, write only the plugin defaults."
+        ]
+    for key in extra_keys:
+        if key not in present:
+            out.append(f"- {key}")
+            present.add(key)
+    return "\n".join(out) + "\n"
+
+
+def _overlay_keys(wiki: Path) -> list[str]:
+    found: set[str] = set()
+    for path in wiki.rglob("*.md"):
+        rel = path.relative_to(wiki)
+        if any(part.startswith(".") or part in RESERVED for part in rel.parts[:-1]):
+            continue
+        if path.name in {"_index.md", "index.md", "schema.md", "log.md", "README.md"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        raw = extract_frontmatter(text)
+        if not raw:
+            continue
+        try:
+            parsed = parse_yaml(raw)
+        except ValueError:
+            continue
+        if not isinstance(parsed, dict):
+            continue
+        for key in parsed:
+            if not isinstance(key, str) or not key.strip():
+                continue
+            if key in PLUGIN_FRONTMATTER_KEYS:
+                continue
+            if key.startswith("needs_") or key.startswith("promotion_"):
+                continue
+            found.add(key)
+    return sorted(found)
+
+
 def patch_schema(wiki: Path) -> bool:
     schema_path = wiki / "schema.md"
     if not schema_path.is_file():
@@ -135,12 +240,13 @@ def patch_schema(wiki: Path) -> bool:
     token_hits: dict[str, int] = {}
     tags: set[str] = set()
     for title, rest in entries:
-        token = _object_token(title)
-        blob = _blob(title, rest)
-        if token:
-            token_hits[token] = token_hits.get(token, 0) + (1 if token in blob else 0)
+        line_tokens = _tokens_in_line(title, rest)
+        for token in line_tokens:
+            token_hits[token] = token_hits.get(token, 0) + 1
         tags.update(_tags_from_rest(rest))
-    objects = sorted(token for token, hits in token_hits.items() if hits >= OBJECT_HIT_THRESHOLD)
+    objects = sorted(
+        token for token, hits in token_hits.items() if hits >= OBJECT_HIT_THRESHOLD
+    )
     existing_objects = _section(text, "## Objects") or ""
     already = [
         line[2:].strip()
@@ -149,6 +255,7 @@ def patch_schema(wiki: Path) -> bool:
     ]
     merged_objects = sorted(set(already) | set(objects))
     discovered = discover(wiki).get("categories") or []
+    extra_keys = _overlay_keys(wiki)
     new_text = text
     new_text = _replace_section(new_text, "## Objects", _objects_body(merged_objects))
     taxonomy = _section(new_text, "## Tag Taxonomy (bounded)") or ""
@@ -158,6 +265,10 @@ def patch_schema(wiki: Path) -> bool:
         _taxonomy_body(taxonomy, sorted(tags)),
     )
     new_text = _replace_section(new_text, "## Categories", _categories_body(discovered))
+    contract = _section(new_text, "## Page contract") or ""
+    new_text = _replace_section(
+        new_text, "## Page contract", _contract_body(contract, extra_keys)
+    )
     if new_text == text:
         return False
     tmp = schema_path.with_suffix(".md.tmp")

@@ -91,7 +91,64 @@ test_categories_refresh_from_directories() {
   teardown
 }
 
+test_brand_leading_title_still_learns_homepage() {
+  setup
+  local i
+  for i in 1 2 3 4 5 6; do
+    write_page "${TESTDIR}/wiki/concepts/home-${i}.md" \
+      "Naturbiss homepage ${i}" "[homepage]"
+  done
+  python3 "${BUILD}" --wiki-root "${TESTDIR}/wiki" --rebuild-all
+  python3 "${PATCH}" --wiki-root "${TESTDIR}/wiki"
+  objects="$(awk '/^## Objects/{f=1;next} /^## /{f=0} f' "${TESTDIR}/wiki/schema.md")"
+  printf '%s\n' "${objects}" | grep -q '^- homepage$' \
+    || { echo "FAIL: homepage missing when titles lead with a brand"; echo "${objects}"; teardown; exit 1; }
+  echo "PASS: test_brand_leading_title_still_learns_homepage"
+  teardown
+}
+
+test_tag_only_cluster_learns_object() {
+  setup
+  local i
+  for i in 1 2 3 4 5 6; do
+    write_page "${TESTDIR}/wiki/concepts/pdp-${i}.md" \
+      "Offer tile ${i}" "[pdp]"
+  done
+  python3 "${BUILD}" --wiki-root "${TESTDIR}/wiki" --rebuild-all
+  python3 "${PATCH}" --wiki-root "${TESTDIR}/wiki"
+  objects="$(awk '/^## Objects/{f=1;next} /^## /{f=0} f' "${TESTDIR}/wiki/schema.md")"
+  printf '%s\n' "${objects}" | grep -q '^- pdp$' \
+    || { echo "FAIL: tag-only cluster did not add pdp"; echo "${objects}"; teardown; exit 1; }
+  echo "PASS: test_tag_only_cluster_learns_object"
+  teardown
+}
+
+test_extra_frontmatter_key_enters_page_contract() {
+  setup
+  write_page "${TESTDIR}/wiki/concepts/home.md" "Homepage" "[homepage]"
+  python3 - "${TESTDIR}/wiki/concepts/home.md" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+text = text.replace("tags: [homepage]\n", "tags: [homepage]\nsurface: homepage\n")
+path.write_text(text)
+PY
+  python3 "${PATCH}" --wiki-root "${TESTDIR}/wiki"
+  contract="$(awk '/^## Page contract/{f=1;next} /^## /{f=0} f' "${TESTDIR}/wiki/schema.md")"
+  printf '%s\n' "${contract}" | grep -q '^- surface$' \
+    || { echo "FAIL: extra key surface missing from Page contract"; echo "${contract}"; teardown; exit 1; }
+  if printf '%s\n' "${contract}" | grep -q '^- title$'; then
+    echo "FAIL: plugin default title leaked into Page contract"; teardown; exit 1
+  fi
+  echo "PASS: test_extra_frontmatter_key_enters_page_contract"
+  teardown
+}
+
 test_six_homepage_pages_add_object_and_tags
 test_five_pages_do_not_add_object
 test_categories_refresh_from_directories
+test_brand_leading_title_still_learns_homepage
+test_tag_only_cluster_learns_object
+test_extra_frontmatter_key_enters_page_contract
 echo "ALL PASS"

@@ -371,8 +371,10 @@ A thin-capture rejection is a feature, not a failure.
      --wiki-root "${WIKI_ROOT}"
    ```
 
-   The helper locks schema.md, adds object tokens with 6 or more index hits,
-   records tags in Tag Taxonomy, and refreshes Categories from directories.
+   The helper locks schema.md, adds object tokens with 6 or more index hits
+   (title, one-liner, or tag list), records tags in Tag Taxonomy, refreshes
+   Categories from directories, and lists extra frontmatter keys under
+   Page contract.
 
 7.5. **Per-`_index.md` size threshold check.** After step 7, if a touched
    `_index.md` is over 8192 bytes, log `schema-drift` via

@@ -27,7 +27,8 @@ Exit non-zero if that helper fails.
 2. Read `.ingest-issues.jsonl` and `.doctor-runs.jsonl` if they exist.
 3. Run page validation and tag lint (`wiki-validate-page.py`,
    `wiki-lint-tags.py`).
-4. Patch schema.md via `wiki-schema-patch.py` (objects, tags, categories).
+4. Patch schema.md via `wiki-schema-patch.py` (objects, tags, categories,
+   extra Page contract keys).
 5. You may fix frontmatter, tags, and related lists. Leave page synthesis
    unchanged.
 6. If a cluster needs a playbook body, write one rewrite job under

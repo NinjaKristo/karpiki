@@ -26,8 +26,8 @@ A token belongs here when the walked index has 6 or more hits on it (title,
 one-liner, or tag list). Brand and source-owner names are not objects.
 
 ## Tag Taxonomy (bounded)
-Tags the wiki has accepted. Synonyms the wiki has decided. Init starts empty
-of specific tags.
+Tags the wiki has accepted. One spelling per idea. Init starts empty of
+specific tags.
 
 ## Numeric Thresholds
 Required bullets (wording may grow, these keys stay):
@@ -42,6 +42,6 @@ Intervals apply in order; the last number repeats. Skip, sha-match,
 thin-reject, and failed ingestions do not count.
 
 ## Page contract
-Plugin defaults live in the ingest page-conventions. This file may name extra
-frontmatter keys and extra body sections. If it names none, write only the
-plugin defaults.
+Plugin defaults live in the ingest page-conventions. Extra frontmatter keys
+already present on pages are listed as bullets. If it names none, write only
+the plugin defaults.
