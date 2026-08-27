@@ -64,6 +64,7 @@ group_for_test() {
     integration/test-untrusted-checkout.sh|\
     unit/test-dispatch-scan-routing.sh|\
     unit/test-dispatcher-slots.sh|\
+    unit/test-dispatcher-doctor-due.sh|\
     unit/test-ingest-run-events.sh|\
     unit/test-wiki-doctor-cli.sh|\
     unit/test-no-direct-spawn-path.sh|\

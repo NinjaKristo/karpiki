@@ -1023,14 +1023,17 @@ def _move_processing_to_failed(root: Path, processing: Path) -> Path | None:
 def _refill_after_worker(root: Path, config: dict[str, Any]) -> None:
     if _test_mode() and os.environ.get("WIKI_DISPATCH_TEST_NO_REFILL") == "1":
         return
-    try:
-        from wiki_scheduler import global_scheduler_installed, tick_all
+    # Test mode must refill this wiki locally. tick_all() only sees
+    # LaunchAgent-registered wikis, not temporary fixtures.
+    if not _test_mode():
+        try:
+            from wiki_scheduler import global_scheduler_installed, tick_all
 
-        if global_scheduler_installed():
-            tick_all()
-            return
-    except Exception:
-        pass
+            if global_scheduler_installed():
+                tick_all()
+                return
+        except Exception:
+            pass
     dispatch_tick(root, config, "worker_completion")
 
 
@@ -1217,6 +1220,10 @@ def run_worker(
                 "WIKI_DISPATCH_ACCEPTANCE_RETAIN_ARTIFACTS"
             ) != "1":
                 shutil.rmtree(invocation.run_dir, ignore_errors=True)
+            try:
+                maybe_enqueue_doctor(root, config)
+            except Exception:
+                pass
             _refill_after_worker(root, config)
             return 0
 
@@ -1640,6 +1647,32 @@ def enqueue_doctor(
         raise DispatchError(f"wiki dispatch: doctor worker spawn failed: {spawn_error}")
     print(outcome)
     return outcome
+
+
+def maybe_enqueue_doctor(root: Path, config: dict[str, Any]) -> str:
+    """Best-effort doctor enqueue after ingest complete."""
+
+    if os.environ.get("WIKI_DISPATCH_TEST_SKIP_DOCTOR") == "1":
+        return "skipped"
+    if os.environ.get("WIKI_DISPATCH_TEST_DOCTOR_ENQUEUE_FAIL") == "1":
+        raise DispatchError("injected doctor enqueue failure")
+    due_script = Path(__file__).resolve().parent / "wiki-doctor-due.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(due_script), "--wiki-root", str(root)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "skipped"
+    if result.returncode != 0:
+        return "skipped"
+    try:
+        return enqueue_doctor(root, config)
+    except (DispatchError, OSError, ConfigError):
+        return "skipped"
 
 
 def run_doctor_worker(
