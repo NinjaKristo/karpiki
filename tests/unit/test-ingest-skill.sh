@@ -64,6 +64,13 @@ grep -q 'sibling-fanout' "${SKILL}" \
   || fail "ingest skill missing sibling-fanout miss"
 grep -q 'does not compact' "${SKILL}" \
   || fail "ingest skill must not compact the rest of the cluster in this capture"
+grep -q 'wiki-schema-patch.py' "${SKILL}" \
+  || fail "ingest skill must patch schema.md after indexes rebuild"
+if grep -q '2+ sources or 200+ lines' "${SKILL}" || grep -q 'exceeds 200 lines' "${SKILL}"; then
+  fail "ingest skill still splits on 200 lines"
+fi
+grep -q 'Do not file a schema-proposal' "${SKILL}" \
+  || fail "ingest skill must not file index-size schema-proposals"
 
 # No iron-law duplication
 if grep -q 'NO WIKI WRITE IN THE FOREGROUND' "${SKILL}"; then

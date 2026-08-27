@@ -110,6 +110,7 @@ group_for_test() {
     unit/test-normalize-frontmatter.sh|\
     unit/test-relink.sh|\
     unit/test-reserved-set-update.sh|\
+    unit/test-schema-patch.sh|\
     unit/test-validate-code-block-skip.sh|\
     unit/test-validate-deleted-categories.sh|\
     unit/test-validate-page.sh|\

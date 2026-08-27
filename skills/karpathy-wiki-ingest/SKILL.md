@@ -364,29 +364,20 @@ A thin-capture rejection is a feature, not a failure.
 
    If the script exits non-zero (lock timeout, discovery failure), log the failure to `log.md` and continue. The next ingest catches up because indexes are a function of directory state.
 
-7.5. **Per-`_index.md` size threshold check.** After step 7's invocation, check the size of every `_index.md` the script touched:
+   Then patch schema.md from the live indexes:
 
    ```bash
-   for idx in "${TOUCHED_INDEXES[@]}"; do
-     size="$(wc -c < "${idx}" | tr -d ' ')"
-     if [[ "${size}" -gt 8192 ]]; then
-       slug="$(echo "${idx#${WIKI_ROOT}/}" | tr '/' '-' | tr '.' '-')"
-       proposal_pattern="${WIKI_ROOT}/.wiki-pending/schema-proposals/*-${slug}-index-split.md"
-       if ! find ${proposal_pattern} -mtime -1 2>/dev/null | grep -q .; then
-         ts="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
-         cat > "${WIKI_ROOT}/.wiki-pending/schema-proposals/${ts}-${slug}-index-split.md" <<EOF
----
-title: "Schema proposal: split ${idx#${WIKI_ROOT}/} (size threshold exceeded)"
-captured_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-trigger: "${idx#${WIKI_ROOT}/} size = ${size} bytes (threshold 8192 bytes)"
----
-
-The sub-index file ${idx#${WIKI_ROOT}/} exceeded the 8 KB orientation-degradation threshold. Recommended: split this directory into sub-categories, OR consolidate scope. Root MOC is exempt from this threshold (capped via Rule 3 instead — see Category discipline).
-EOF
-       fi
-     fi
-   done
+   python3 "${WIKI_PLUGIN_ROOT}/scripts/wiki-schema-patch.py" \
+     --wiki-root "${WIKI_ROOT}"
    ```
+
+   The helper locks schema.md, adds object tokens with 6 or more index hits,
+   records tags in Tag Taxonomy, and refreshes Categories from directories.
+
+7.5. **Per-`_index.md` size threshold check.** After step 7, if a touched
+   `_index.md` is over 8192 bytes, log `schema-drift` via
+   `wiki-issue-log.sh` (doctor consumes it). Do not file a schema-proposal
+   capture for the size threshold.
 
    The root `index.md` (small MOC built by `_build_root_moc`) is exempt from this 8 KB threshold. The MOC is bounded by Rule 3 (≥8 categories soft ceiling) instead — see Category discipline section.
 
@@ -475,7 +466,7 @@ If the validator exits non-zero for any page, fix the mechanical issue and re-va
 
 If a contradiction surfaces, add `contradictions:` frontmatter pointing to the conflicting page — do NOT resolve it during ingest. (Contradictions are a judgement call, not a validator violation.)
 
-Additionally: after running the validator, also run `wiki-lint-tags.py` if it exists in the plugin. If it reports proposed new tags, drop a schema-proposal capture in `.wiki-pending/schema-proposals/` and continue — do NOT rename tags inline.
+Additionally: after running the validator, also run `wiki-lint-tags.py` if it exists in the plugin. New tags are recorded by `wiki-schema-patch.py` on this capture. Do not file a tag schema-proposal capture.
 
 ## Numeric thresholds (from schema.md)
 
@@ -484,7 +475,9 @@ Additionally: after running the validator, also run `wiki-lint-tags.py` if it ex
 - **Restructure a top-level category** when it contains 500+ pages.
 - **Split or atom-ize `index.md`** when it exceeds ~200 entries / 8KB / 2000 tokens — orientation degrades beyond that. Evidence: Chroma Context Rot research shows retrieval accuracy starts degrading around 1,000 tokens of preamble; Obsidian MOC practitioners cap at 25 items per MOC; Starmorph flags 100-200 pages as the scale-out point.
 
-When a threshold is reached, propose the restructure via a `schema-proposal` capture in `.wiki-pending/schema-proposals/`. Do NOT restructure during the current ingest.
+When a page or index threshold is reached, log it for doctor. Do not file a
+200-line page-split schema-proposal. Do not compact other cluster pages in
+this capture.
 
 ## Category discipline (v2.3+)
 
