@@ -355,7 +355,7 @@ best-effort.
   provider authentication, and macOS-specific containment tests.
 - `bin/wiki orient` CLI shortcut for the read protocol's Step A (deferred — observe whether prose-only fix produces reliable behavior first).
 - `allowed-tools` scoping on the four skills (deferred — orthogonal to read-protocol restoration).
-- `wiki doctor` real implementation (smartest-model re-rate, orphan repair, tag-synonym consolidation).
+- Doctor quality re-rate and playbook rewriter (census ships; body compact is later).
 - `.ingest.log` → `.ingest.jsonl` migration (dual-artifact pattern, scheduled for v2.5).
 - Test coverage for non-Claude-Code platforms other than the qualified Codex
   plugin host (Cursor / Copilot CLI / OpenCode / Gemini).

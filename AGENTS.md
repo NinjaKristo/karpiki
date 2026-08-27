@@ -18,6 +18,9 @@ replacement, and not a work-package manifest.
 
 ## Recent Changes
 
+- 2026-08-27: Ingest must-augment clustered objects, silently patches
+  schema.md, and a detached `wiki doctor` census runs on schema cadence
+  (Grok xhigh, Codex max fallback). Doctor does not rewrite page bodies.
 - 2026-08-26: Read Step B uses per-index document frequency: rare terms
   select, common terms (6+ hits, including tags on the index line)
   AND-filter unless that would empty the set. Related-only ingest does
@@ -28,8 +31,6 @@ replacement, and not a work-package manifest.
   `CLAUDE.md` as a compatibility symlink.
 - 2026-08-20: Added the global project-ledger convention and the local
   `ISSUES.md` boundary clarification.
-- 2026-08-20: Released v0.3.1 global scheduler coordination with one
-  machine-wide LaunchAgent and fixed ingest limits.
 
 ## If you are an AI agent
 
