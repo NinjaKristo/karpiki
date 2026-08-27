@@ -66,6 +66,8 @@ grep -q 'does not compact' "${SKILL}" \
   || fail "ingest skill must not compact the rest of the cluster in this capture"
 grep -q 'wiki-schema-patch.py' "${SKILL}" \
   || fail "ingest skill must patch schema.md after indexes rebuild"
+grep -q 'ingest_outcome: skip' "${SKILL}" \
+  || fail "ingest skill must set ingest_outcome skip on sha-match"
 if grep -q '2+ sources or 200+ lines' "${SKILL}" || grep -q 'exceeds 200 lines' "${SKILL}"; then
   fail "ingest skill still splits on 200 lines"
 fi

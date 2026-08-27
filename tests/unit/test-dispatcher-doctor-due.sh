@@ -150,8 +150,38 @@ PY
   echo "PASS: test_due_true_skips_when_doctor_already_leased"
 }
 
+test_skip_archive_does_not_count_or_enqueue_doctor() {
+  local wiki="${TESTDIR}/due-skip"
+  make_wiki "${wiki}"
+  seed_completed_ingests "${wiki}" 9
+  printf '%s\n' '---' 'title: "Skip me"' 'ingest_outcome: skip' '---' \
+    > "${wiki}/.wiki-pending/next.md"
+  run_complete_tick "${wiki}" \
+    || fail "skip ingest must exit 0"
+  wait_for 'grep -q "\"status\":\"skip\"" "'"${wiki}"'/.ingest-runs.jsonl" 2>/dev/null' \
+    || fail "skip ingest did not stamp skip"
+  if grep -q '"status":"completed"' "${wiki}/.ingest-runs.jsonl" | grep -q next; then
+    :
+  fi
+  python3 - "${wiki}/.ingest-runs.jsonl" <<'PY' || fail "skip ingest stamped completed"
+import json, sys
+events = [json.loads(line) for line in open(sys.argv[1]) if line.strip()]
+this = [e for e in events if e.get("capture") == "next.md"]
+assert this and this[-1]["status"] == "skip", this
+assert not any(e.get("capture") == "next.md" and e.get("status") == "completed" for e in events)
+PY
+  if [[ -f "${wiki}/.doctor-runs.jsonl" ]] && grep -q '"status":"started"' "${wiki}/.doctor-runs.jsonl"; then
+    fail "skip ingest enqueued a doctor"
+  fi
+  if python3 "${REPO_ROOT}/scripts/wiki-doctor-due.py" --wiki-root "${wiki}" >/dev/null; then
+    fail "nine completed plus skip should not be due"
+  fi
+  echo "PASS: test_skip_archive_does_not_count_or_enqueue_doctor"
+}
+
 test_due_true_enqueues_doctor
 test_due_false_does_not_enqueue_doctor
 test_ingest_complete_zero_when_doctor_enqueue_fails
 test_due_true_skips_when_doctor_already_leased
+test_skip_archive_does_not_count_or_enqueue_doctor
 echo "ALL PASS"

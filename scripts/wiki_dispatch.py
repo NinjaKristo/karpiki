@@ -400,6 +400,29 @@ def _lease_archive_path(root: Path, lease: dict[str, Any]) -> Path | None:
     return candidate
 
 
+def _archive_run_status(archive: Path) -> str:
+    """Return skip when the archived capture declared a no-op ingest."""
+
+    try:
+        text = archive.read_text(encoding="utf-8")
+    except OSError:
+        return "completed"
+    if not text.startswith("---"):
+        return "completed"
+    closing = text.find("\n---\n", 4)
+    if closing < 0:
+        return "completed"
+    for raw in text[4:closing].splitlines():
+        line = raw.strip()
+        if re.match(r"^ingest_outcome:\s*skip\s*$", line):
+            return "skip"
+        if re.match(r'^ingest_outcome:\s*"skip"\s*$', line):
+            return "skip"
+        if re.match(r"^ingest_outcome:\s*'skip'\s*$", line):
+            return "skip"
+    return "completed"
+
+
 def _reconcile_dead_leases(root: Path, slot_root: Path, stale_after: int) -> None:
     """Recover stale dead leases without duplicating a live provider."""
 
@@ -436,12 +459,13 @@ def _reconcile_dead_leases(root: Path, slot_root: Path, stale_after: int) -> Non
 
         archive = _lease_archive_path(root, lease)
         if (processing is None or not processing.exists()) and archive is not None and archive.is_file():
+            recovered_status = _archive_run_status(archive)
             append_run_event(
                 root,
                 {
                     "run_id": lease.get("run_id"),
                     "capture": _capture_event_name(str(lease.get("capture", ""))),
-                    "status": "completed",
+                    "status": recovered_status,
                     "profile": lease.get("profile"),
                     "provider": lease.get("provider"),
                     "attempt": lease.get("attempt", 1),
@@ -1209,12 +1233,18 @@ def run_worker(
             and archive.is_file()
         )
         if lifecycle_complete:
+            run_status = _archive_run_status(archive) if archive is not None else "completed"
             append_run_event(
                 root,
-                {**base_event, "status": "completed", "exit_code": 0, "at": _utc_now()},
+                {
+                    **base_event,
+                    "status": run_status,
+                    "exit_code": 0,
+                    "at": _utc_now(),
+                },
                 idempotent_terminal=True,
             )
-            if not _completed_event_present(root, run_id):
+            if run_status == "completed" and not _completed_event_present(root, run_id):
                 raise DispatchError("wiki dispatch worker: completion event could not be verified")
             _worker_cleanup(root, lease_path, processing, run_id, requeue=False)
             if invocation is not None and os.environ.get(
