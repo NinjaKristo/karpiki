@@ -76,8 +76,18 @@ grep -q 'Do not wiki-wide merge tags' "${SKILL}" \
 if grep -q '2+ sources or 200+ lines' "${SKILL}" || grep -q 'exceeds 200 lines' "${SKILL}"; then
   fail "ingest skill still splits on 200 lines"
 fi
-grep -q 'Do not file a schema-proposal' "${SKILL}" \
-  || fail "ingest skill must not file index-size schema-proposals"
+if grep -q '.wiki-pending/schema-proposals' "${SKILL}"; then
+  fail "ingest skill still names schema-proposals as a write path"
+fi
+if grep -qi '9th-category' "${SKILL}"; then
+  fail "ingest skill still files 9th-category captures"
+fi
+grep -q 'schema-drift' "${SKILL}" \
+  || fail "ingest skill must log schema-drift for fat index and ninth category"
+grep -q 'best existing category' "${SKILL}" \
+  || fail "ingest skill must place a ninth-category page in an existing category"
+grep -q 'Do not mkdir a ninth category' "${SKILL}" \
+  || fail "ingest skill must not mkdir a ninth category"
 
 # No iron-law duplication
 if grep -q 'NO WIKI WRITE IN THE FOREGROUND' "${SKILL}"; then

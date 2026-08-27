@@ -37,11 +37,13 @@ else
 fi
 grep -q 'Do not execute the rewrite' "${SKILL}" \
   || fail "skill must record rewrite jobs without executing them"
-if grep -q 'apply historical 200-line' "${SKILL}"; then
-  :
-else
-  grep -q 'Do not apply historical 200-line' "${SKILL}" \
-    || fail "skill must not apply historical page-split proposals"
+grep -q 'wiki-archive-schema-proposals.py' "${SKILL}" \
+  || fail "skill must archive leftover schema-proposals"
+if grep -q 'Do not apply historical 200-line' "${SKILL}"; then
+  fail "skill still teaches the old schema-proposal queue"
+fi
+if grep -qi 'file a schema-proposal' "${SKILL}"; then
+  fail "skill must not instruct filing schema-proposal captures"
 fi
 if grep -q 'NO WIKI WRITE IN THE FOREGROUND' "${SKILL}"; then
   fail "iron law duplicated in doctor skill"

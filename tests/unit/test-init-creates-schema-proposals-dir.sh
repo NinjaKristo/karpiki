@@ -1,12 +1,5 @@
 #!/bin/bash
-# RED: wiki-init.sh must create .wiki-pending/schema-proposals/ at init.
-#
-# Bug (0.2.8 #12): The ingest skill (skills/karpathy-wiki-ingest/SKILL.md
-# step 7.6) tells the ingester to write schema-proposal files into
-# <wiki>/.wiki-pending/schema-proposals/ when a category-threshold fires.
-# wiki-init.sh creates .wiki-pending/ (line 61) but not the schema-proposals/
-# subdir. First time a threshold fires, the writer crashes (or silently
-# no-ops if it tolerates missing dirs).
+# Init must not create a schema-proposals inbox.
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +15,10 @@ trap 'rm -rf "${TMP}"' EXIT
 
 bash "${INIT}" main "${TMP}/wiki" >/dev/null
 
-[[ -d "${TMP}/wiki/.wiki-pending/schema-proposals" ]] \
-  || fail "schema-proposals dir not created at init: ${TMP}/wiki/.wiki-pending/schema-proposals"
+[[ -d "${TMP}/wiki/.wiki-pending" ]] \
+  || fail "init must still create .wiki-pending"
+if [[ -d "${TMP}/wiki/.wiki-pending/schema-proposals" ]]; then
+  fail "init must not create .wiki-pending/schema-proposals"
+fi
 
-echo "PASS: wiki-init creates .wiki-pending/schema-proposals/"
+echo "PASS: wiki-init does not create schema-proposals"

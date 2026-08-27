@@ -17,6 +17,8 @@ doctor_one_wiki() {
   [[ -d "${wiki}" ]] || { echo >&2 "wiki doctor: wiki path does not exist: ${wiki}"; return 1; }
   [[ -f "${wiki}/.wiki-config" ]] || { echo >&2 "wiki doctor: not a wiki (no .wiki-config): ${wiki}"; return 1; }
   mkdir -p "${wiki}/.locks" "${wiki}/.wiki-pending/rewrite-jobs"
+  python3 "${SCRIPT_DIR}/wiki-archive-schema-proposals.py" --wiki-root "${wiki}" \
+    || return 1
   local run_id
   run_id="doc-$(date -u +%Y%m%dT%H%M%SZ)-$$"
   local ts

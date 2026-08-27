@@ -378,8 +378,7 @@ A thin-capture rejection is a feature, not a failure.
 
 7.5. **Per-`_index.md` size threshold check.** After step 7, if a touched
    `_index.md` is over 8192 bytes, log `schema-drift` via
-   `wiki-issue-log.sh` (doctor consumes it). Do not file a schema-proposal
-   capture for the size threshold.
+   `wiki-issue-log.sh`. Doctor consumes it.
 
    The root `index.md` (small MOC built by `_build_root_moc`) is exempt from this 8 KB threshold. The MOC is bounded by Rule 3 (≥8 categories soft ceiling) instead — see Category discipline section.
 
@@ -468,7 +467,7 @@ If the validator exits non-zero for any page, fix the mechanical issue and re-va
 
 If a contradiction surfaces, add `contradictions:` frontmatter pointing to the conflicting page — do NOT resolve it during ingest. (Contradictions are a judgement call, not a validator violation.)
 
-Additionally: after running the validator, also run `wiki-lint-tags.py` if it exists in the plugin. New tags are recorded by `wiki-schema-patch.py` on this capture. Do not wiki-wide merge tags; doctor collapses duplicate spellings. Do not file a tag schema-proposal capture.
+Additionally: after running the validator, also run `wiki-lint-tags.py` if it exists in the plugin. New tags are recorded by `wiki-schema-patch.py` on this capture. Do not wiki-wide merge tags; doctor collapses duplicate spellings.
 
 ## Numeric thresholds (from schema.md)
 
@@ -477,9 +476,8 @@ Additionally: after running the validator, also run `wiki-lint-tags.py` if it ex
 - **Restructure a top-level category** when it contains 500+ pages.
 - **Split or atom-ize `index.md`** when it exceeds ~200 entries / 8KB / 2000 tokens — orientation degrades beyond that. Evidence: Chroma Context Rot research shows retrieval accuracy starts degrading around 1,000 tokens of preamble; Obsidian MOC practitioners cap at 25 items per MOC; Starmorph flags 100-200 pages as the scale-out point.
 
-When a page or index threshold is reached, log it for doctor. Do not file a
-200-line page-split schema-proposal. Do not compact other cluster pages in
-this capture.
+When a page or index threshold is reached, log it for doctor. Do not compact
+other cluster pages in this capture.
 
 ## Category discipline (v2.3+)
 
@@ -489,7 +487,11 @@ Three rules govern how categories grow. Each has firing mechanism aimed at the a
 
 **Rule 2: Sub-directory depth has a HARD cap of 4.** Validator REJECTS any page placed at depth ≥5 (`category/a/b/c/d/page.md`). The current ingester must place shallower if a deeper position would be required. **Mechanism:** validator exit non-zero. `wiki-status.sh` surfaces "categories exceeding depth 4" (always 0 if validator is doing its job).
 
-**Rule 3: ≥8 categories soft ceiling triggers schema-proposal.** When current category count is already 8 and the current ingester wants to mkdir a 9th, it files a schema-proposal capture in `.wiki-pending/schema-proposals/<timestamp>-9th-category-<name>.md` instead of mkdir-ing. The current capture is filed in the existing-best-fit category for now. User reviews schema-proposal and can `mkdir` themselves to override. **Mechanism:** schema-proposal capture (not a hard reject — flexibility preserved). `wiki-status.sh` surfaces "category count vs soft-ceiling 8."
+**Rule 3: ≥8 categories is a soft ceiling.** When current category count is
+already 8 and this capture would need a 9th top-level directory, place the
+page in the best existing category and log `schema-drift` via
+`wiki-issue-log.sh`. Do not mkdir a ninth category. A human can add a
+directory later. `wiki status` shows the ceiling.
 
 ## What's NOT in this skill
 

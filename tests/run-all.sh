@@ -99,6 +99,7 @@ group_for_test() {
     unit/test-scheduler-plist.sh)
       echo "scheduler"
       ;;
+    unit/test-archive-schema-proposals.sh|\
     unit/test-backfill-quality.sh|\
     unit/test-build-index.sh|\
     unit/test-collapse-tag.sh|\

@@ -112,9 +112,8 @@ test_lock_slug_matches_wiki_lock_sh() {
 }
 
 test_handles_9_categories_no_crash() {
-  # Per Rule 3 visibility — if the cheap model creates a 9th category,
-  # build-index must still complete cleanly (Rule 3's schema-proposal
-  # firing happens elsewhere; here we just verify build doesn't break).
+  # Per Rule 3 visibility — ingest must not mkdir a 9th category, but if
+  # one exists, build-index must still complete cleanly.
   setup
   for c in concepts entities queries ideas a b c d projects; do
     mkdir -p "${WIKI}/${c}"

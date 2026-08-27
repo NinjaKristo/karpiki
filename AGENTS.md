@@ -18,6 +18,8 @@ replacement, and not a work-package manifest.
 
 ## Recent Changes
 
+- 2026-08-27: Schema-proposals retired. Ingest logs schema-drift; doctor
+  archives leftover files. Init no longer creates that inbox.
 - 2026-08-27: karpathy-wiki is a three-host plugin in marketplace
   toolboxmd (Codex, Claude Code, Grok Build). It is not the marketplace.
 - 2026-08-27: Ingest must-augment clustered objects, silently patches
@@ -29,8 +31,7 @@ replacement, and not a work-package manifest.
   not append `sources:`.
 - 2026-08-21: Split the old combined backlog into `CHANGELOG.md`, `TODO.md`,
   `ISSUES.md`, and `IDEAS.md`.
-- 2026-08-21: Made `AGENTS.md` the canonical regular file and kept
-  `CLAUDE.md` as a compatibility symlink.
+
 
 ## If you are an AI agent
 

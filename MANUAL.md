@@ -120,7 +120,11 @@ tests.
 - **Spawn prompt fix** — points spawned ingester at `skills/karpathy-wiki-ingest/SKILL.md` (was ambiguous after the split deleted the legacy monolith).
 - **Lock-window fix** in `_raw_recovery` — capture emit now happens inside the manifest lock alongside the raw → inbox move.
 - **`wiki status` content-set filter** — `total pages` and below-3.5 quality counts now exclude `_index.md`, root index, raw/, and reserved dirs (was silently inflated by the unfiltered glob).
-- **Schema-proposals dir created at init** — `wiki-init.sh` now creates `.wiki-pending/schema-proposals/` so the ingester's threshold-fire path doesn't crash on first use.
+- **Schema-proposals retired** — ingest logs schema-drift and patches
+  Tag Taxonomy instead of writing `.wiki-pending/schema-proposals/`. Doctor
+  (and `scripts/wiki-archive-schema-proposals.py`) move any leftover files
+  into `.wiki-pending/archive/schema-proposals/` so the pile is revertible
+  git history, not a live inbox. Init no longer creates that directory.
 - **Doc rot cleanup** — README points at the actual `.claude-plugin/marketplace.json`; ingest skill says `python3` (not `bash`) for `wiki-manifest.py`; TODO.md refs to the deleted legacy skill annotated.
 
 Tests: 58 + 8 RED tests pass.
