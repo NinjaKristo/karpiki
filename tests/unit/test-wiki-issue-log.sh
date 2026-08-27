@@ -1,6 +1,6 @@
 #!/bin/bash
 # Verify wiki-issue-log.sh:
-# - validates --type against the 8-value enum
+# - validates --type against the issue-type enum
 # - serializes concurrent appends via flock
 # - truncates over-length lines to 4 KB total
 # - escapes JSON correctly (special chars in detail)
@@ -45,6 +45,12 @@ assert data['severity'] == 'warn'
 assert data['detail'].startswith('Links to')
 "
 
+# Case 2b: sibling-fanout is a valid type
+bash "${LOG}" --wiki "${WIKI}" --ingester-run "in-test-1b" --capture "c.md" \
+  --page "concepts/foo.md" --type sibling-fanout --severity warn \
+  --detail "Created a page whose object token already had 6+ index hits." \
+  || fail "sibling-fanout type rejected"
+
 # Case 3: special chars in detail (quotes, newlines, backslashes)
 bash "${LOG}" --wiki "${WIKI}" --ingester-run "in-test-2" --capture "c.md" \
   --page "concepts/bar.md" --type contradiction --severity info \
@@ -53,8 +59,8 @@ bash "${LOG}" --wiki "${WIKI}" --ingester-run "in-test-2" --capture "c.md" \
 python3 -c "
 import json
 lines = open('${WIKI}/.ingest-issues.jsonl').readlines()
-assert len(lines) == 2, f'expected 2 lines, got {len(lines)}'
-data = json.loads(lines[1].strip())
+assert len(lines) == 3, f'expected 3 lines, got {len(lines)}'
+data = json.loads(lines[2].strip())
 assert 'foo' in data['detail'], f'detail mangled: {data[\"detail\"]}'
 assert 'backslash' in data['detail']
 "
@@ -83,7 +89,7 @@ wait
 
 # Verify all 5 appended lines are well-formed JSON
 final_lines=$(wc -l < "${WIKI}/.ingest-issues.jsonl")
-[[ "${final_lines}" -eq 8 ]] || fail "expected 8 lines after 5 concurrent appends + 3 prior, got ${final_lines}"
+[[ "${final_lines}" -eq 9 ]] || fail "expected 9 lines after 5 concurrent appends + 4 prior, got ${final_lines}"
 
 # Each line must parse as JSON
 python3 -c "

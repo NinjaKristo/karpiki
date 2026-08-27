@@ -224,6 +224,7 @@ else:
         "tag-drift":         "tag drift",
         "quality-concern":   "quality concern",
         "orphan":            "orphan",
+        "sibling-fanout":    "sibling fanout",
         "other":             "other",
     }
     for itype, n in counts.most_common():

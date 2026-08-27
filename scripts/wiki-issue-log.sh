@@ -7,7 +7,8 @@
 #       --detail "<prose>" [--suggested-action "<prose>"]
 #
 # Enum for --type: broken-cross-link | contradiction | schema-drift |
-#                  stale-claim | tag-drift | quality-concern | orphan | other
+#                  stale-claim | tag-drift | quality-concern | orphan |
+#                  sibling-fanout | other
 #
 # Concurrency: appends are serialized via flock on
 # <wiki>/.locks/ingest-issues.lock. Atomic per line.
@@ -17,7 +18,7 @@
 
 set -uo pipefail
 
-VALID_TYPES="broken-cross-link contradiction schema-drift stale-claim tag-drift quality-concern orphan other"
+VALID_TYPES="broken-cross-link contradiction schema-drift stale-claim tag-drift quality-concern orphan sibling-fanout other"
 VALID_SEVERITIES="info warn error"
 MAX_LINE=4096
 

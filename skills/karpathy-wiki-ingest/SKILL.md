@@ -1,7 +1,7 @@
 ---
 name: karpathy-wiki-ingest
 description: |
-  For a detached wiki ingester only. The main agent never loads this. Defines orientation protocol, page format, role guardrail, validator contract, manifest protocol, and deterministic completion contract. Loaded by the provider-aware runtime worker.
+  Detached ingester only. One capture: orient, augment the object page when the index already clusters it, complete. Main agent never loads this.
 ---
 
 # karpathy-wiki ingest (for detached runtime ingester only)
@@ -42,10 +42,8 @@ titles alone.
      200 lines.
 
 5. **Score candidates against the index.** A page is a candidate if ANY
-   extracted signal:
-   - Substring-matches its title (case-insensitive), OR
-   - Matches a tag (exact, case-insensitive), OR
-   - Appears in its `_index.md` one-line summary.
+   extracted signal substring-matches (case-insensitive) its title, its
+   one-liner, or the tag list on that `_index.md` line.
 
    This is a deterministic substring + tag match — no embeddings, no
    semantic similarity. See "Why no embeddings / vector search" below
@@ -62,9 +60,16 @@ titles alone.
 
 ### Steps 8-9: decide and report observations
 
-8. **Decide**: create new page, augment an existing page, or no-op
-   (the capture's content is already covered by an existing page).
-   Write your decision rationale into the commit message later.
+8. **Decide** using must-augment. Inventory object tokens in the capture.
+   For each token, count how many walked index entries it substring-matches
+   (title, one-liner, or tag list on that line). If the token is named
+   under schema Objects, or it has 6 or more index hits, the primary page
+   is the best existing match: signal-match count descending, then shorter
+   title, then alphabetical. Augment that page. Create a new page only when
+   no object match exists. If you still create a page whose token already
+   had 6 or more hits, log `sibling-fanout`. This capture does not compact
+   the rest of the cluster. Write the rationale into the commit message
+   later.
 
 9. **Issue reporting (during steps 5-7).** While reading the index and
    the candidate pages, observe issues. Append each as one JSONL line
@@ -104,6 +109,8 @@ titles alone.
      ingester (not human).
    - **orphan**: page exists but is not linked from any `_index.md` or
      other page.
+   - **sibling-fanout**: a new page was created even though its object
+     token already had 6 or more index hits.
    - **other**: anything else worth noting.
 
    Severity:
@@ -273,15 +280,15 @@ A thin-capture rejection is a feature, not a failure.
    - Always call `python3 "${WIKI_PLUGIN_ROOT}/scripts/wiki-manifest.py" build "${WIKI_ROOT}"` at the end of ingest to refresh sha256 and `last_ingested`. This is mandatory; the manifest is the drift-detection source of truth.
    - **Iron rule:** `origin` is the capture's `evidence` field value — never the string `"file"`, `"conversation"` (when a real path was available), `"mixed"`, or the `evidence_type`/`capture_kind`. If `capture_kind == "chat-only"` AND the capture has no real path, `origin` is the literal string `"conversation"`. Any other value is a validator failure.
    - **sha256 short-circuit.** If `raw/<basename>` already exists AND `sha256(new) == manifest[raw/<basename>].sha256`, the evidence content is identical — skip content re-ingest of this capture and append `## [<timestamp>] skip | <capture-basename> — sha match, no-op` to `log.md`. You MUST still perform step 9 when `promotion_policy: "selective"`; a duplicate content result does not satisfy a missing promotion decision. Archive the capture normally only after step 9. This prevents re-ingesting the same research file twice without skipping required routing state.
-   - **Same object, augment.** If an existing page is the same knowledge
-     object as the new evidence, merge into it. Create a sibling only when
-     the evidence is a different object. Log the choice in `log.md`.
+   - **Same object, augment.** Follow the must-augment decide rule in
+     orientation step 8. Log the choice in `log.md`.
    - **Overwrite-detection recovery.** If `raw/<basename>` already exists AND the new sha256 differs from the manifest entry AND the manifest's `last_ingested` is within the last 60 minutes (the evidence file on disk was replaced since the previous ingest), treat this as an overwrite situation: copy the new evidence to `raw/<basename>` AS NORMAL, but also append `## [<timestamp>] overwrite | <capture-basename> — raw sha changed since <previous_ingested_iso>, previous referenced_by: [<list>]` to `log.md`. Proceed with the rest of step 4 and the title-scope check in step 6 as above. The overwrite is not an error — it is the exact scenario from the failure-mode transcript (two research agents both wrote to `2026-04-24-gemma4-hardware.md`), and the title-scope check catches the content-divergence part.
 
 5. **Decide target pages by extracting knowledge objects first.**
-   `suggested_pages` is a hint; orientation may change it. Choose one
-   primary page for the main object. Touch another page only when that
-   page's claims change.
+   `suggested_pages` is a hint; orientation may change it. Apply the
+   must-augment decide rule (orientation step 8). Choose one primary
+   page for the main object. Touch another page only when that page's
+   claims change. This capture does not compact the rest of the cluster.
 
    Canonical wiki pages are knowledge objects, not source summaries. A
    capture can produce zero, one, or several durable objects. Before choosing

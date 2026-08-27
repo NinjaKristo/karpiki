@@ -56,6 +56,15 @@ grep -q 'related-only' "${SKILL}" \
 grep -q 'related-only' "${PAGE_REF}" \
   || fail "page-conventions missing related-only sources: rule"
 
+grep -q '6 or more' "${SKILL}" \
+  || fail "ingest skill does not must-augment on 6 or more index hits"
+grep -q 'best existing match' "${SKILL}" \
+  || fail "ingest skill does not name best existing match ranking"
+grep -q 'sibling-fanout' "${SKILL}" \
+  || fail "ingest skill missing sibling-fanout miss"
+grep -q 'does not compact' "${SKILL}" \
+  || fail "ingest skill must not compact the rest of the cluster in this capture"
+
 # No iron-law duplication
 if grep -q 'NO WIKI WRITE IN THE FOREGROUND' "${SKILL}"; then
   fail "iron law duplicated in ingest skill (single source: using-karpathy-wiki/SKILL.md)"
