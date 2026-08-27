@@ -17,6 +17,10 @@
     {
       "path": ".claude-plugin/plugin.json",
       "pointer": "/version"
+    },
+    {
+      "path": ".grok-plugin/plugin.json",
+      "pointer": "/version"
     }
   ]
 }

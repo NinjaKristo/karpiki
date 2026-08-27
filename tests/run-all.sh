@@ -69,6 +69,7 @@ group_for_test() {
     unit/test-wiki-doctor-cli.sh|\
     unit/test-no-direct-spawn-path.sh|\
     unit/test-session-start-claude-code-hookeventname.sh|\
+    unit/test-session-start-grok-plugin-root.sh|\
     unit/test-worker-heartbeat.sh|\
     unit/test-worker-reconciliation.sh)
       echo "dispatcher"

@@ -44,6 +44,8 @@ if [[ -f "${LOADER_PATH}" ]]; then
 
   if [[ -n "${CURSOR_PLUGIN_ROOT:-}" ]]; then
     printf '{"additional_context":"%s"}' "${session_context}"
+  elif [[ -n "${GROK_PLUGIN_ROOT:-}" ]]; then
+    printf '{"additionalContext":"%s"}' "${session_context}"
   elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -z "${COPILOT_CLI:-}" ]]; then
     printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}' "${session_context}"
   else

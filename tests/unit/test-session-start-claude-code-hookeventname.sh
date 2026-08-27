@@ -26,6 +26,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 # Run the hook with the Claude Code harness signature: CLAUDE_PLUGIN_ROOT set,
 # CURSOR_PLUGIN_ROOT unset, COPILOT_CLI unset.
 output=$(env -u WIKI_CAPTURE -u CLAUDE_AGENT_PARENT -u CURSOR_PLUGIN_ROOT -u COPILOT_CLI \
+  -u GROK_PLUGIN_ROOT \
   CLAUDE_PLUGIN_ROOT="${REPO_ROOT}" \
   bash "${HOOK}" 2>/dev/null || true)
 

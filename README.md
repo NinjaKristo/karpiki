@@ -42,11 +42,10 @@ capture verbatim into both queues.
 
 ## Install in Codex
 
-The public repository is a Codex marketplace containing one plugin. Install it
-from Codex CLI:
+Add the ToolboxMD marketplace, then install this plugin:
 
 ```bash
-codex plugin marketplace add toolboxmd/karpathy-wiki --ref main
+codex plugin marketplace add toolboxmd/marketplace
 codex plugin add karpathy-wiki@toolboxmd
 ```
 
@@ -65,6 +64,8 @@ codex plugin remove karpathy-wiki@toolboxmd
 codex plugin add karpathy-wiki@toolboxmd
 ```
 
+The catalog lives in `toolboxmd/marketplace`. This repository is the plugin.
+
 2. Start a new Codex session, review the new hook hash through `/hooks`, then
    ask Codex to run `wiki scheduler install` with the new plugin-owned Runtime
    CLI path. This refreshes the one machine scheduler.
@@ -76,14 +77,9 @@ stores that path in one machine scheduler instead of one plist per wiki.
 Start a new session after each install or update. If a hook definition changed,
 review and trust its new hash through `/hooks`.
 
-For development from a local checkout:
-
-```bash
-git clone https://github.com/toolboxmd/karpathy-wiki ~/dev/karpathy-wiki
-cd ~/dev/karpathy-wiki
-codex plugin marketplace add "$PWD"
-codex plugin add karpathy-wiki@toolboxmd
-```
+For development from sibling checkouts, generate local indexes from the
+marketplace catalog (see `toolboxmd/marketplace`) and add that sibling root as
+marketplace toolboxmd. Do not add this plugin repo as the marketplace.
 
 Codex installs a snapshot from the marketplace. During local development,
 refresh it by removing and adding the snapshot in your shell:
@@ -139,34 +135,41 @@ They intentionally preserve all wiki data and `~/.wiki-pointer`.
 
 ## Claude Code compatibility
 
-Clone the repository, then register it with Claude Code by adding two entries
-to `~/.claude/settings.json`: the marketplace pointer and the enabled-plugin
-flag.
+Add marketplace toolboxmd, then enable `karpathy-wiki@toolboxmd`. If you
+already enabled `karpathy-wiki@karpathy-wiki-local`, rename that key to
+`karpathy-wiki@toolboxmd` and point `extraKnownMarketplaces.toolboxmd` at
+`toolboxmd/marketplace` (GitHub or the generated local sibling root).
 
 ```json
 {
   "extraKnownMarketplaces": {
-    "karpathy-wiki-local": {
+    "toolboxmd": {
       "source": {
-        "source": "directory",
-        "path": "/Users/<you>/dev/karpathy-wiki"
+        "source": "github",
+        "repo": "toolboxmd/marketplace"
       }
     }
   },
   "enabledPlugins": {
-    "karpathy-wiki@karpathy-wiki-local": true
+    "karpathy-wiki@toolboxmd": true
   }
 }
 ```
 
-Replace `/Users/<you>/dev/karpathy-wiki` with the actual checkout path. Then
-run `/reload-plugins` in a Claude Code session. Hooks, commands, and skills are
-discovered from the plugin manifest. No global CLI symlink or manual hook wiring
-is required.
+Then run `/reload-plugins`. Hooks, commands, and skills are discovered from
+the plugin manifest. No global CLI symlink or manual hook wiring is required.
 
-Claude Code requires plugins to come from a registered marketplace, including
-local-directory sources. The `extraKnownMarketplaces` entry declares this repo
-as a single-plugin marketplace, backed by `.claude-plugin/marketplace.json`.
+## Grok Build
+
+```bash
+grok plugin marketplace add toolboxmd/marketplace
+grok plugin install karpathy-wiki --trust
+```
+
+Start a new session or reload plugins. Grok copies the plugin on install;
+`grok plugin update karpathy-wiki` refreshes it after a release. Do not
+path-install this checkout. Uninstalling the plugin preserves wiki data and
+`~/.wiki-pointer`.
 
 ## How it works
 

@@ -18,6 +18,8 @@ replacement, and not a work-package manifest.
 
 ## Recent Changes
 
+- 2026-08-27: karpathy-wiki is a three-host plugin in marketplace
+  toolboxmd (Codex, Claude Code, Grok Build). It is not the marketplace.
 - 2026-08-27: Ingest must-augment clustered objects, silently patches
   schema.md, and a detached `wiki doctor` census runs on schema cadence
   (Grok xhigh, Codex max fallback). Doctor does not rewrite page bodies.
@@ -29,8 +31,6 @@ replacement, and not a work-package manifest.
   `ISSUES.md`, and `IDEAS.md`.
 - 2026-08-21: Made `AGENTS.md` the canonical regular file and kept
   `CLAUDE.md` as a compatibility symlink.
-- 2026-08-20: Added the global project-ledger convention and the local
-  `ISSUES.md` boundary clarification.
 
 ## If you are an AI agent
 
